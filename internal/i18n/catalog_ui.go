@@ -308,3 +308,10 @@ func init() {
 		"apply.recheck":   {"re-reading the machine…", "makine yeniden okunuyor…"},
 	})
 }
+
+// Advice action bar.
+func init() {
+	register(map[string][2]string{
+		"apply.select_all": {"Select all", "Tümünü seç"},
+	})
+}

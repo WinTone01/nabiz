@@ -370,3 +370,10 @@ func init() {
 		"adv.bpftune-tuner-off.gain": {"The buffer stays where you put it", "Tampon koyduğun yerde kalır"},
 	})
 }
+
+// Wording adjusted now that the tuner change is applied through a drop-in.
+func init() {
+	register(map[string][2]string{
+		"adv.bpftune-tuner-off.s2": {"A drop-in overrides ExecStart without touching the packaged unit", "Drop-in dosyası paket birimini değiştirmeden ExecStart'ı geçersiz kılar"},
+	})
+}

@@ -163,7 +163,7 @@ func (p *advicePage) actionBar(a *App) string {
 		button(zoneApply, fmt.Sprintf("%s (%d)", i18n.T("ui.apply"), count),
 			btnSuccess, count > 0 && !a.Busy()),
 		button(zoneRollback, i18n.T("apply.rollback"), btnGhost, a.HasSnapshots),
-		button(zoneSelectSafe, i18n.T("apply.select_safe"), btnGhost, len(a.Applicable) > 0),
+		button(zoneSelectAll, i18n.T("apply.select_all"), btnGhost, len(a.Applicable) > 0),
 		button(zoneClearSel, i18n.T("apply.clear"), btnGhost, count > 0),
 	)
 	label := sMuted.Render(i18n.T("apply.selected", count))

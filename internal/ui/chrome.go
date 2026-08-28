@@ -8,7 +8,6 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	zone "github.com/lrstanley/bubblezone"
 
-	"github.com/WinTone01/nabiz/internal/apply"
 	"github.com/WinTone01/nabiz/internal/i18n"
 	"github.com/WinTone01/nabiz/internal/util"
 )
@@ -134,7 +133,10 @@ func indentBlock(block string, columns int) string {
 
 func (m *model) viewContent() string {
 	page := m.page()
-	return joinCol(m.viewToolbar(), "", page.View(m.app))
+	// a rule under the global toolbar: without it the page's own action bar sits
+	// directly beneath and the two rows read as one crowded strip
+	return joinCol(m.viewToolbar(), "",
+		sLine.Render(strings.Repeat("─", m.app.Width())), "", page.View(m.app))
 }
 
 // --- header ---------------------------------------------------------------------
@@ -223,10 +225,10 @@ const (
 	zoneHelp     = "tb:help"
 	zoneQuit     = "tb:quit"
 
-	zoneApply      = "adv:apply"
-	zoneRollback   = "adv:rollback"
-	zoneSelectSafe = "adv:selectsafe"
-	zoneClearSel   = "adv:clear"
+	zoneApply     = "adv:apply"
+	zoneRollback  = "adv:rollback"
+	zoneSelectAll = "adv:selectall"
+	zoneClearSel  = "adv:clear"
 )
 
 // viewToolbar is the row of real buttons. Everything on it also has a key; the
@@ -288,11 +290,13 @@ func (m *model) toolbarClick(msg tea.MouseMsg) (tea.Cmd, bool) {
 	case clicked(msg, zoneRollback):
 		m.askRollback()
 		return nil, true
-	case clicked(msg, zoneSelectSafe):
-		for id, change := range m.app.Applicable {
-			// Everything except the changes that can take the link down; those
-			// stay a deliberate, individual decision.
-			m.app.Selected[id] = change.Risk != apply.RiskLink
+	case clicked(msg, zoneSelectAll):
+		// Everything, including the changes that can take the link down. The
+		// risk badge sits next to each row and the dialog lists them again
+		// before anything runs, so hiding them behind a second button only
+		// made them harder to find.
+		for id := range m.app.Applicable {
+			m.app.Selected[id] = true
 		}
 		m.reloadAll()
 		return nil, true

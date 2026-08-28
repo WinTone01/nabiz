@@ -119,11 +119,17 @@ want in the **Advice** screen, press Apply, and confirm:
 ╰──────────────────────────────────────────────────────────────────╯
 ```
 
-**21 of the recommendations carry a script**, so ticking them is enough:
+**24 of the recommendations carry a script**, so ticking them is enough:
 congestion control, MTU probing, slow-start, notsent-lowat, conntrack sizing,
 the default qdisc, cake shaping, NIC offloads, EEE, link advertisement, the
-bpftune buffer ceiling, IPv6, encrypted DNS, the resolver fallback leak, gateway
-mode, QUIC ports, hostlist mode, and four kinds of hostlist pruning.
+bpftune buffer ceiling and its tuner override, the allowed congestion-control
+list, IPv6, encrypted DNS, the resolver fallback leak, gateway mode, QUIC ports,
+hostlist mode, and four kinds of hostlist pruning.
+
+If a recommendation prints a command, that is the command nabiz runs. The two
+that print one and cannot be ticked say why: a kernel downgrade is too far to
+reach for on your behalf, and rolling bpftune back would undo the other changes
+applied beside it.
 
 The same flow exists on the command line:
 

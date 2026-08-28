@@ -441,8 +441,9 @@ func GenerateAdvice(result Result, cfg config.Config) []Advice {
 				Why:   t("adv.bpftune-tuner-off.why", change.Count, change.To),
 				How: []string{
 					t("adv.bpftune-tuner-off.s1"),
-					"sudo systemctl edit bpftune.service",
-					t("adv.bpftune-tuner-off.s2"),
+					"sudo mkdir -p /etc/systemd/system/bpftune.service.d",
+					"sudo printf '[Service]\\nExecStart=\\nExecStart=/usr/sbin/bpftune -a tcp_conn_tuner\\n' > /etc/systemd/system/bpftune.service.d/99-nabiz-tuners.conf",
+					"sudo systemctl daemon-reload && sudo systemctl restart bpftune",
 					"nabiz ab --target bpftune",
 				},
 				Gain:   t("adv.bpftune-tuner-off.gain"),

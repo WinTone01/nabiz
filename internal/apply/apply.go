@@ -361,6 +361,62 @@ func extraChanges(result suite.Result, iface string, sysctls map[string]string,
 					"tc qdisc replace dev %s root %s", iface, restoreQdisc(sysctls))},
 			})
 
+		case "bpftune-cc":
+			// dctcp is the outlier: without end-to-end ECN it behaves like reno,
+			// so the fix is to stop offering it rather than to stop bpftune
+			current := sysctls["net.ipv4.tcp_allowed_congestion_control"]
+			if current == "" || !strings.Contains(current, "dctcp") {
+				continue
+			}
+			var kept []string
+			for _, name := range strings.Fields(current) {
+				if name != "dctcp" {
+					kept = append(kept, name)
+				}
+			}
+			add(Change{
+				ID: advice.ID, Title: advice.Title, Risk: RiskLow,
+				Apply: []string{fmt.Sprintf(
+					"sysctl -w net.ipv4.tcp_allowed_congestion_control=%q",
+					strings.Join(kept, " "))},
+				Restore: []string{fmt.Sprintf(
+					"sysctl -w net.ipv4.tcp_allowed_congestion_control=%q", current)},
+			})
+
+		// bpftune-vs-physical is deliberately absent. Its command rolls back
+		// everything bpftune has done, which would undo the buffer ceiling and
+		// the tuner override applied alongside it; it is advice about the order
+		// to do physical work in, not a change to make.
+
+		case "bpftune-tuner-off":
+			binary := util.Which("bpftune")
+			if binary == "" {
+				continue
+			}
+			const dropin = "/etc/systemd/system/bpftune.service.d/99-nabiz-tuners.conf"
+			add(Change{
+				ID: advice.ID, Title: advice.Title, Risk: RiskMedium,
+				Apply: []string{
+					"mkdir -p /etc/systemd/system/bpftune.service.d",
+					fmt.Sprintf("printf '[Service]\\nExecStart=\\nExecStart=%s -a tcp_conn_tuner\\n' > %s",
+						binary, dropin),
+					"systemctl daemon-reload",
+					"systemctl restart bpftune",
+				},
+				Restore: []string{
+					"rm -f " + dropin,
+					"systemctl daemon-reload",
+					"systemctl restart bpftune",
+				},
+			})
+
+		case "dns-transparent":
+			add(Change{
+				ID: advice.ID, Title: advice.Title, Risk: RiskMedium,
+				Apply:   []string{"unwallctl dns enable quad9 dnscrypt"},
+				Restore: []string{"unwallctl dns disable"},
+			})
+
 		case "pin-100full":
 			if iface == "" {
 				continue

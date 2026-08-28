@@ -421,7 +421,7 @@ const (
 // button is a single row, filled. Bordered buttons are three rows tall, and a
 // toolbar three rows tall costs more of the screen than the actions are worth.
 func button(id, label string, kind int, enabled bool) string {
-	base := lipgloss.NewStyle().Padding(0, 1).Bold(true)
+	base := lipgloss.NewStyle().Padding(0, 2).Bold(true)
 	var style lipgloss.Style
 	switch {
 	case !enabled:
@@ -441,9 +441,9 @@ func button(id, label string, kind int, enabled bool) string {
 // checkbox is the approval surface for advice: nothing is applied that was not
 // ticked here first.
 func checkbox(id, label string, checked, enabled bool) string {
-	box, style := "☐", sMuted
+	box, style := "[ ]", sMuted
 	if checked {
-		box, style = "☑", sAcc
+		box, style = "[x]", sAcc
 	}
 	if !enabled {
 		style = sFaint
@@ -474,7 +474,9 @@ func segmented(ids, labels []string, active int) string {
 	return strings.Join(parts, " ")
 }
 
-// toolbar spaces controls evenly on one row.
+// toolbar spaces controls on one row. Two cells rather than one: filled buttons
+// sitting a single space apart read as one striped block instead of separate
+// things you can press.
 func toolbar(controls ...string) string {
 	kept := make([]string, 0, len(controls))
 	for _, control := range controls {
@@ -482,7 +484,7 @@ func toolbar(controls ...string) string {
 			kept = append(kept, control)
 		}
 	}
-	return strings.Join(kept, " ")
+	return strings.Join(kept, "  ")
 }
 
 // clickableRow marks a whole line so a list can be driven with the mouse.
