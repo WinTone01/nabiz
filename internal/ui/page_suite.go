@@ -94,13 +94,14 @@ func (p *testPage) body(a *App) string {
 	return renderResult(result, p.width)
 }
 
-// renderResult is shared with the reports page: one result, one layout.
+// renderResult is shared with the reports page: one result, one layout. Every
+// block is a panel, so a long result reads as a sequence of cards rather than
+// one uninterrupted column of text.
 func renderResult(result suite.Result, width int) string {
-	var b strings.Builder
-	b.WriteString(scoreLine(result) + "\n\n")
+	specs := []sectionSpec{{i18n.T("f.score"), scoreLine(result)}}
 
 	if len(result.Latency) > 0 {
-		chart := max(width-64, 8)
+		chart := max(width-72, 8)
 		cols := []column{
 			{title: i18n.T("col.target"), width: 20},
 			{title: i18n.T("col.loss"), width: 7, right: true},
@@ -129,69 +130,69 @@ func renderResult(result suite.Result, width int) string {
 				rendered(sparkline(summary.Samples, chart)),
 			})
 		}
-		b.WriteString(sSection.Render(i18n.T("sec.latency")) + "\n")
-		b.WriteString(renderTable(cols, rows) + "\n")
+		specs = append(specs, sectionSpec{i18n.T("sec.latency"),
+			strings.TrimRight(renderTable(cols, rows), "\n")})
 	}
 
 	if load := result.Load; load != nil {
-		b.WriteString(sSection.Render(i18n.T("sec.load")) + "\n")
-		b.WriteString("  " + kv(i18n.T("load.idle"),
-			fmt.Sprintf("%.1f ms", load.Idle.P50), sText, 12) + "\n")
+		var lines []string
+		lines = append(lines, kv(i18n.T("load.idle"),
+			fmt.Sprintf("%.1f ms", load.Idle.P50), sText, 12))
 		if load.Download != nil {
-			b.WriteString("  " + kv(i18n.T("load.download"),
+			lines = append(lines, kv(i18n.T("load.download"),
 				fmt.Sprintf("%-12s p95 %6.1f ms  %s", util.HumanRate(load.Download.Bps),
 					load.DownLatency.P95,
 					deltaStyle(load.DownDelta).Render(fmt.Sprintf("+%.0f ms", load.DownDelta))),
-				sText, 12) + "\n")
+				sText, 12))
 		}
 		if load.Upload != nil {
-			b.WriteString("  " + kv(i18n.T("load.upload"),
+			lines = append(lines, kv(i18n.T("load.upload"),
 				fmt.Sprintf("%-12s p95 %6.1f ms  %s", util.HumanRate(load.Upload.Bps),
 					load.UpLatency.P95,
 					deltaStyle(load.UpDelta).Render(fmt.Sprintf("+%.0f ms", load.UpDelta))),
-				sText, 12) + "\n")
+				sText, 12))
 		}
 		gradeStyle := sOK
 		if load.Grade != "A+" && load.Grade != "A" {
 			gradeStyle = sWarn
 		}
-		b.WriteString("  " + kv(i18n.T("load.bloat"), load.Grade, gradeStyle, 12) + "\n")
+		lines = append(lines, kv(i18n.T("load.bloat"), load.Grade, gradeStyle, 12))
 		if load.Download != nil && load.Download.Sockets.Count > 0 {
 			sockets := load.Download.Sockets
-			b.WriteString("  " + sFaint.Render(i18n.T("load.kernel",
+			lines = append(lines, sFaint.Render(i18n.T("load.kernel",
 				strings.Join(sockets.CCAlgorithms, ","), sockets.AvgCWnd,
-				sockets.RetransPct, sockets.MinRTTms, sockets.Count)) + "\n")
+				sockets.RetransPct, sockets.MinRTTms, sockets.Count)))
 		}
-		b.WriteString("\n")
+		specs = append(specs, sectionSpec{i18n.T("sec.load"), strings.Join(lines, "\n")})
 	}
 
 	if len(result.DNSBench) > 0 {
-		b.WriteString(sSection.Render(i18n.T("sec.dns")) + "\n" + dnsTable(result.DNSBench) + "\n")
+		specs = append(specs, sectionSpec{i18n.T("sec.dns"),
+			strings.TrimRight(dnsTable(result.DNSBench), "\n")})
 	}
 	if len(result.DNSChecks) > 0 {
-		b.WriteString(sSection.Render(i18n.T("sec.dnschecks")) + "\n" +
-			checksTable(result.DNSChecks) + "\n")
+		specs = append(specs, sectionSpec{i18n.T("sec.dnschecks"),
+			strings.TrimRight(checksTable(result.DNSChecks), "\n")})
 	}
 	if len(result.DPI) > 0 {
-		b.WriteString(sSection.Render(i18n.T("sec.dpi")) + "\n" +
-			dpiTable(result.DPI, width) + "\n")
+		specs = append(specs, sectionSpec{i18n.T("sec.dpi"),
+			strings.TrimRight(dpiTable(result.DPI, width-6), "\n")})
 	}
 	if len(result.Hops) > 0 {
-		b.WriteString(sSection.Render(i18n.T("sec.path")) + "\n" +
-			hopsTable(result.Hops) + "\n")
-	}
-	if result.MTU != nil {
-		style := sText
-		if result.MTU.Blackhole {
-			style = sBad
+		body := strings.TrimRight(hopsTable(result.Hops), "\n")
+		if result.MTU != nil {
+			style := sText
+			if result.MTU.Blackhole {
+				style = sBad
+			}
+			body += "\n\n" + style.Render(i18n.T("misc.mtu_line", result.MTU.IfaceMTU,
+				result.MTU.ProbedMTU, result.MTU.Detail))
 		}
-		b.WriteString(style.Render(i18n.T("misc.mtu_line", result.MTU.IfaceMTU,
-			result.MTU.ProbedMTU, result.MTU.Detail)) + "\n\n")
+		specs = append(specs, sectionSpec{i18n.T("sec.path"), body})
 	}
-
-	b.WriteString(sSection.Render(i18n.T("sec.findings")) + "\n")
-	b.WriteString(findingsBlock(result.Findings, width))
-	return b.String()
+	specs = append(specs, sectionSpec{i18n.T("sec.findings"),
+		strings.TrimRight(findingsBlock(result.Findings, width-6), "\n")})
+	return stack(width, specs...)
 }
 
 func dnsTable(rows []suite.DNSRow) string {

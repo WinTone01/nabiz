@@ -814,19 +814,22 @@ func (m *model) viewToolbar() string {
 	_, canAB := m.currentPage().(abPage)
 	_, canRun := m.currentPage().(runnablePage)
 
+	// Buttons are words. Decorative glyphs in a diagnostic tool read as
+	// decoration, and the one pictograph that was here made the whole row look
+	// like something a template produced.
 	buttons := []string{
-		button(zoneRun, "▶ "+i18n.T("key.run"), btnPrimary, canRun && !running),
-		button(zoneStop, "■ "+i18n.T("key.stop"), btnDanger, running),
-		button(zoneExport, "⭳ "+i18n.T("key.export"), btnGhost, m.app.LastRun() != nil),
-		button(zoneBaseline, "◎ "+i18n.T("key.baseline"), btnGhost, m.app.LastRun() != nil),
+		button(zoneRun, i18n.T("key.run"), btnPrimary, canRun && !running),
+		button(zoneStop, i18n.T("key.stop"), btnDanger, running),
+		button(zoneExport, i18n.T("key.export"), btnGhost, m.app.LastRun() != nil),
+		button(zoneBaseline, i18n.T("key.baseline"), btnGhost, m.app.LastRun() != nil),
 	}
 	if canAB {
-		buttons = append(buttons, button(zoneAB, "⇄ "+i18n.T("key.ab"), btnGhost, !running))
+		buttons = append(buttons, button(zoneAB, i18n.T("key.ab"), btnGhost, !running))
 	}
 	buttons = append(buttons,
-		button(zoneLang, "🌐 "+strings.ToUpper(string(i18n.Current())), btnGhost, true),
-		button(zoneHelp, "? "+i18n.T("key.help"), btnGhost, true),
-		button(zoneQuit, "✕ "+i18n.T("key.quit"), btnGhost, true))
+		button(zoneLang, strings.ToUpper(string(i18n.Current())), btnGhost, true),
+		button(zoneHelp, i18n.T("key.help"), btnGhost, true),
+		button(zoneQuit, i18n.T("key.quit"), btnGhost, true))
 	return toolbar(buttons...) + "\n"
 }
 

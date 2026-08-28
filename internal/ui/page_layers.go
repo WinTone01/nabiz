@@ -6,11 +6,9 @@ import (
 
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
 
 	"github.com/WinTone01/nabiz/internal/i18n"
 	"github.com/WinTone01/nabiz/internal/probe"
-	"github.com/WinTone01/nabiz/internal/util"
 )
 
 // Layers walks the stack from the cable upwards. Every line here is read from
@@ -43,11 +41,8 @@ func (p *layersPage) SuiteName(*App) string { return "deep" }
 func (p *layersPage) View(a *App) string { return p.viewport.View() }
 
 func (p *layersPage) body(a *App) string {
-	var b strings.Builder
 	link := a.Env.link
-
-	b.WriteString(rule("1 · "+i18n.T("sec.physical"), p.width) + "\n")
-	for _, row := range [][2]string{
+	physical := kvBlock(16, [][2]string{
 		{i18n.T("f.iface"), fmt.Sprintf("%s (%s) %s", link.Iface, link.Address, orDash(link.Driver))},
 		{i18n.T("f.speed"), fmt.Sprintf("%d Mbit/s · %s", link.SpeedMbit, link.Duplex)},
 		{i18n.T("f.mtu"), fmt.Sprint(link.MTU)},
@@ -56,13 +51,10 @@ func (p *layersPage) body(a *App) string {
 			orDash(link.Qdisc), link.QdiscStats.Drops, link.QdiscStats.Backlog,
 			link.QdiscStats.Overlimits)},
 		{i18n.T("f.counters"), orDash(strings.Join(errorCounters(link), "  "))},
-	} {
-		b.WriteString("  " + kv(row[0], row[1], sText, 16) + "\n")
-	}
+	})
 
 	health := a.Env.health
-	b.WriteString("\n" + rule("2 · "+i18n.T("sec.tcpcounters"), p.width) + "\n")
-	for _, row := range [][2]string{
+	counters := kvBlock(18, [][2]string{
 		{"segments", fmt.Sprintf("out %d · in %d", health.OutSegs, health.InSegs)},
 		{i18n.T("f.retransmit"), fmt.Sprintf("%d (%.2f%%)", health.RetransSegs, health.RetransPct)},
 		{"lost retrans", fmt.Sprint(health.LostRetransmit)},
@@ -73,17 +65,15 @@ func (p *layersPage) body(a *App) string {
 		{"spurious RTO", fmt.Sprint(health.SpuriousRTOs)},
 		{"established", fmt.Sprint(health.CurrEstab)},
 		{"failed / reset", fmt.Sprintf("%d / %d", health.AttemptFails, health.EstabResets)},
-	} {
-		b.WriteString("  " + kv(row[0], row[1], sText, 18) + "\n")
-	}
+	})
 
-	b.WriteString("\n" + rule("3 · "+i18n.T("panel.sockets")+" · netlink INET_DIAG", p.width) + "\n")
+	var socketBody string
 	sockets, err := probe.TCPSockets("")
 	switch {
 	case err != nil:
-		b.WriteString("  " + sFaint.Render(err.Error()) + "\n")
+		socketBody = sFaint.Render(err.Error())
 	case len(sockets) == 0:
-		b.WriteString("  " + emptyState("ui.none") + "\n")
+		socketBody = emptyState("ui.none")
 	default:
 		cols := []column{
 			{title: i18n.T("col.peer"), width: 24},
@@ -96,7 +86,7 @@ func (p *layersPage) body(a *App) string {
 		}
 		var rows [][]cell
 		for index, socket := range sockets {
-			if index >= 14 {
+			if index >= 12 {
 				break
 			}
 			style := sText
@@ -111,35 +101,35 @@ func (p *layersPage) body(a *App) string {
 				numf("%.2f Mbps", socket.DeliveryMbps()),
 			})
 		}
-		b.WriteString(renderTable(cols, rows))
-		if len(sockets) > 14 {
-			b.WriteString(sFaint.Render(i18n.T("ui.more", len(sockets)-14)) + "\n")
+		socketBody = strings.TrimRight(renderTable(cols, rows), "\n")
+		if len(sockets) > 12 {
+			socketBody += "\n" + sFaint.Render(i18n.T("ui.more", len(sockets)-12))
 		}
 	}
 
-	b.WriteString("\n" + rule("4 · "+i18n.T("panel.netfilter"), p.width) + "\n")
+	var netfilter []string
 	nfq := a.Env.nfqueue
 	switch {
 	case !nfq.Available:
-		b.WriteString("  " + sFaint.Render(i18n.T("ui.needs_root")+" ("+nfq.Reason+")") + "\n")
+		netfilter = append(netfilter, sFaint.Render(i18n.T("ui.needs_root")+" ("+nfq.Reason+")"))
 	case len(nfq.Queues) == 0:
-		b.WriteString("  " + sWarn.Render(i18n.T("ui.none")) + "\n")
+		netfilter = append(netfilter, sWarn.Render(i18n.T("ui.none")))
 	default:
 		for _, queue := range nfq.Queues {
 			style := sOK
 			if queue.QueueDropped+queue.UserDropped > 0 {
 				style = sBad
 			}
-			b.WriteString(fmt.Sprintf("  queue %-4d queued %-6d %s\n",
+			netfilter = append(netfilter, fmt.Sprintf("queue %-4d queued %-6d %s",
 				queue.QNum, queue.Queued,
 				style.Render(fmt.Sprintf("dropped %d/%d",
 					queue.QueueDropped, queue.UserDropped))))
 		}
 	}
-	b.WriteString("  " + kv(i18n.T("f.conntrack"), fmt.Sprintf("%d / %d",
-		a.Env.conntrack.Count, a.Env.conntrack.Max), sText, 18) + "\n")
+	netfilter = append(netfilter, kv(i18n.T("f.conntrack"),
+		fmt.Sprintf("%d / %d", a.Env.conntrack.Count, a.Env.conntrack.Max), sText, 18))
 
-	b.WriteString("\n" + rule("5 · "+i18n.T("panel.sysctl"), p.width) + "\n")
+	var tunables []string
 	for _, key := range probe.SysctlKeys {
 		value, ok := a.Env.sysctls[key]
 		if !ok {
@@ -148,11 +138,17 @@ func (p *layersPage) body(a *App) string {
 		style := sText
 		if change, changed := a.Env.bpftune.ChangedByBpftune(key); changed {
 			style = sAcc
-			value += sFaint.Render(fmt.Sprintf("   ← bpftune ×%d", change.Count))
+			value += sFaint.Render(fmt.Sprintf("   <- bpftune x%d", change.Count))
 		}
-		b.WriteString("  " + kv(key, value, style, 42) + "\n")
+		tunables = append(tunables, kv(key, value, style, 42))
 	}
-	return b.String()
+
+	return stack(p.width,
+		sectionSpec{"1 · " + i18n.T("sec.physical"), physical},
+		sectionSpec{"2 · " + i18n.T("sec.tcpcounters"), counters},
+		sectionSpec{"3 · " + i18n.T("panel.sockets") + " · netlink INET_DIAG", socketBody},
+		sectionSpec{"4 · " + i18n.T("panel.netfilter"), strings.Join(netfilter, "\n")},
+		sectionSpec{"5 · " + i18n.T("panel.sysctl"), strings.Join(tunables, "\n")})
 }
 
 func eeeText(status probe.EEEStatus) string {
@@ -164,6 +160,3 @@ func eeeText(status probe.EEEStatus) string {
 	}
 	return i18n.T("ui.disabled")
 }
-
-var _ = lipgloss.JoinVertical
-var _ = util.Truncate

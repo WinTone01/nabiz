@@ -36,7 +36,7 @@ func (p *helpPage) Update(a *App, msg tea.Msg) tea.Cmd {
 func (p *helpPage) View(*App) string { return p.viewport.View() }
 
 func (p *helpPage) body() string {
-	sections := []struct {
+	groups := []struct {
 		title string
 		keys  []string
 	}{
@@ -52,15 +52,13 @@ func (p *helpPage) body() string {
 		}},
 		{"help.sec.limits", []string{"help.limits.1", "help.limits.2", "help.limits.3"}},
 	}
-	var b strings.Builder
-	for index, section := range sections {
-		if index > 0 {
-			b.WriteString("\n")
+	var specs []sectionSpec
+	for _, group := range groups {
+		var lines []string
+		for _, key := range group.keys {
+			lines = append(lines, sText.Render(wrapIndent(i18n.T(key), p.width-8, "  ")))
 		}
-		b.WriteString(rule(i18n.T(section.title), p.width-2) + "\n\n")
-		for _, key := range section.keys {
-			b.WriteString("  " + sText.Render(wrapIndent(i18n.T(key), p.width-4, "  ")) + "\n")
-		}
+		specs = append(specs, sectionSpec{i18n.T(group.title), strings.Join(lines, "\n\n")})
 	}
-	return b.String()
+	return stack(p.width, specs...)
 }

@@ -157,45 +157,55 @@ func (p *advicePage) actionBar(a *App) string {
 	}
 	label := i18n.T("apply.selected", count)
 	buttons := []string{
-		button(zoneApply, "✓ "+i18n.T("ui.apply")+" ("+fmt.Sprint(count)+")",
+		button(zoneApply, i18n.T("ui.apply")+" ("+fmt.Sprint(count)+")",
 			btnSuccess, count > 0 && a.Running == ""),
-		button(zoneRollback, "↺ "+i18n.T("apply.rollback"), btnGhost, a.HasSnapshots),
-		button(zoneSelectSafe, "◍ "+i18n.T("apply.select_safe"), btnGhost, len(a.Applicable) > 0),
-		button(zoneClearSel, "○ "+i18n.T("apply.clear"), btnGhost, count > 0),
+		button(zoneRollback, i18n.T("apply.rollback"), btnGhost, a.HasSnapshots),
+		button(zoneSelectSafe, i18n.T("apply.select_safe"), btnGhost, len(a.Applicable) > 0),
+		button(zoneClearSel, i18n.T("apply.clear"), btnGhost, count > 0),
 	}
 	return lipgloss.JoinHorizontal(lipgloss.Center,
 		toolbar(buttons...), "  ", sDim.Render(label))
 }
 
 func (p *advicePage) body(a *App) string {
-	var b strings.Builder
 	result := a.LastRun()
-	b.WriteString(sFaint.Render(i18n.T("misc.derived_from", result.Name,
-		result.StartedAt.Format("15:04"), len(result.Advice))) + "\n")
+	var specs []sectionSpec
+	specs = append(specs, sectionSpec{i18n.T("sec.advice"),
+		sFaint.Render(i18n.T("misc.derived_from", result.Name,
+			result.StartedAt.Format("15:04"), len(result.Advice)))})
 
 	priority := -1
+	var current []string
+	flush := func() {
+		if len(current) == 0 {
+			return
+		}
+		specs = append(specs, sectionSpec{i18n.T("misc.priority", priority),
+			strings.TrimRight(strings.Join(current, "\n"), "\n")})
+		current = nil
+	}
 	for index, row := range p.rows {
 		if row.advice.Priority != priority {
+			flush()
 			priority = row.advice.Priority
-			b.WriteString("\n" + rule(i18n.T("misc.priority", priority), p.width-2) + "\n\n")
 		}
 		marker := "  "
 		if index == p.cursor {
-			marker = sAcc.Render("▌ ")
+			marker = sAcc.Render("| ")
 		}
 		head := marker
 		if row.selectable {
 			head += checkbox(adviceZone(row.advice.ID), "", a.Selected[row.advice.ID], true) + " "
 			head += riskBadge(row.change.Risk) + " "
 		} else {
-			head += "  " + sFaint.Render("·") + "  "
+			head += "     "
 		}
 		head += sInfo.Render("["+suite.CategoryLabel(row.advice.Category)+"] ") +
 			sBold.Render(row.advice.Title)
-		b.WriteString(head + "\n")
-		b.WriteString(adviceBody(row.advice, p.width) + "\n")
+		current = append(current, head, strings.TrimRight(adviceBody(row.advice, p.width-6), "\n"), "")
 	}
-	return b.String()
+	flush()
+	return stack(p.width, specs...)
 }
 
 func riskBadge(risk string) string {

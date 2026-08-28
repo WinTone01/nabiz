@@ -1,8 +1,8 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 200" width="760" height="200" role="img" aria-label="Nabız — internet stability, measured all the way down">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 210" width="760" height="210" role="img" aria-label="Nabız — internet stability, measured all the way down">
   <defs>
     <linearGradient id="pulse" x1="0" y1="0" x2="1" y2="0">
       <stop offset="0%"   stop-color="#5fdf90"/>
-      <stop offset="55%"  stop-color="#61d4ec"/>
+      <stop offset="50%"  stop-color="#61d4ec"/>
       <stop offset="100%" stop-color="#b79cff"/>
     </linearGradient>
     <linearGradient id="ink" x1="0" y1="0" x2="1" y2="1">
@@ -11,23 +11,19 @@
     </linearGradient>
   </defs>
 
-  <!-- the trace: a steady line, one dropout, one spike, steady again -->
-  <path d="M40 132 H150 l14 -34 12 34 H250 l10 0 M260 132 H300"
-        fill="none" stroke="url(#pulse)" stroke-width="4"
-        stroke-linecap="round" stroke-linejoin="round" opacity="0.95"/>
-  <path d="M300 132 h26" fill="none" stroke="#ff7378" stroke-width="4"
-        stroke-linecap="round" stroke-dasharray="2 9"/>
-  <path d="M326 132 H392 l16 -52 14 52 H520" fill="none" stroke="url(#pulse)"
-        stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
-
-  <circle cx="408" cy="80" r="6" fill="#b79cff"/>
-  <circle cx="313" cy="132" r="4.5" fill="#ff7378"/>
-
   <text x="40" y="88" font-family="ui-monospace,SFMono-Regular,Menlo,monospace"
-        font-size="66" font-weight="700" fill="url(#ink)" letter-spacing="-1">Nabız</text>
+        font-size="64" font-weight="700" fill="url(#ink)" letter-spacing="-1">Nabız</text>
 
-  <text x="536" y="126" font-family="ui-monospace,SFMono-Regular,Menlo,monospace"
-        font-size="15" fill="#8b8ba4">internet stability,</text>
-  <text x="536" y="148" font-family="ui-monospace,SFMono-Regular,Menlo,monospace"
-        font-size="15" fill="#8b8ba4">measured all the way down</text>
+  <text x="44" y="120" font-family="ui-monospace,SFMono-Regular,Menlo,monospace"
+        font-size="14" fill="#8b8ba4">internet stability, measured all the way down</text>
+
+  <!-- the trace: steady, one spike, one dropout, steady again -->
+  <path d="M40 168 H150 l14 -30 12 30 H300" fill="none" stroke="url(#pulse)"
+        stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M300 168 h30" fill="none" stroke="#ff7378" stroke-width="4"
+        stroke-linecap="round" stroke-dasharray="2 9"/>
+  <path d="M330 168 H470 l16 -44 14 44 H720" fill="none" stroke="url(#pulse)"
+        stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="486" cy="124" r="5.5" fill="#b79cff"/>
+  <circle cx="315" cy="168" r="4.5" fill="#ff7378"/>
 </svg>

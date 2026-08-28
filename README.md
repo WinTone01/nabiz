@@ -35,15 +35,20 @@ dialogs — with every action also on a key.
 ╭───────────────────────────────────────────────────────────────────────────────────────╮
 │ 1 Overview  2 Test  3 Layers  4 Kernel  5 bpftune  6 Unwall  7 DNS  8 Monitor  9 Advice│
 │───────────────────────────────────────────────────────────────────────────────────────│
-│╭───────╮ ╭────────╮ ╭──────────╮ ╭────────────────╮ ╭───────╮ ╭────────╮ ╭────────╮   │
-││ ▶ run │ │ ■ stop │ │ ⭳ export │ │ ◎ set baseline │ │ 🌐 EN │ │ ? help │ │ ✕ quit │   │
-│╰───────╯ ╰────────╯ ╰──────────╯ ╰────────────────╯ ╰───────╯ ╰────────╯ ╰────────╯   │
+│╭─────╮ ╭──────╮ ╭────────╮ ╭──────────────╮ ╭────╮ ╭──────╮ ╭──────╮                  │
+││ run │ │ stop │ │ export │ │ set baseline │ │ EN │ │ help │ │ quit │                  │
+│╰─────╯ ╰──────╯ ╰────────╯ ╰──────────────╯ ╰────╯ ╰──────╯ ╰──────╯                  │
 │                                                                                       │
 │╭────────────────────────────╮ ╭──────────────────────────────────────────────────────╮│
 ││ Link                       │ │ Live latency                                         ││
 ││ interface   enp3s0         │ │ target            last   avg   p95   loss            ││
 ││ speed/mtu   100 Mbit·1500  │ │ Modem / Gateway      1     1     1   0.0% ▅▁█▄▃▅▁    ││
 ││ link drops  0              │ │ Cloudflare          25    24    25   0.0% ▄▃▇▃▆▅▄    ││
+│╰────────────────────────────╯ ╰──────────────────────────────────────────────────────╯│
+│╭────────────────────────────╮ ╭──────────────────────────────────────────────────────╮│
+││ Kernel / TCP               │ │ Verdict                                              ││
+││ retransmit  2.99%          │ │ Score 72.9 / 100  (B)   full · 106 s                 ││
+││ sockets     30 · cwnd 26   │ │  ● link dropped 39 times                             ││
 │╰────────────────────────────╯ ╰──────────────────────────────────────────────────────╯│
 ╰───────────────────────────────────────────────────────────────────────────────────────╯
  r run • s stop • e export • l language • ? help • q quit               score 72.9 (B)
@@ -177,7 +182,7 @@ nabiz --lang tr
 nabiz --lang en
 ```
 
-`l` — or the 🌐 button — switches language instantly **and remembers the choice**.
+`l` — or the language button — switches language instantly **and remembers the choice**.
 Findings and advice are re-derived, not re-measured: the numbers stay, only the
 wording changes. A test asserts that every catalog key exists in both languages and
 that their format placeholders match, so a language switch can never crash a render.
@@ -193,7 +198,7 @@ Categories: `physical` `queue` `kernel` `bpftune` `dns` `dpi` `isp` `security`
 (runnable commands), **expected gain**, **risk** and **how to revert**.
 
 ```
- ☑ [low] [kernel] Try the bbr congestion control on a lossy link
+ [x] [low] [kernel] Try the bbr congestion control on a lossy link
      The retransmission rate is 2.99%. cubic reads loss as congestion and cuts the
      rate unnecessarily; bbr decides from measured latency and bandwidth instead.
        $ sudo sysctl -w net.ipv4.tcp_congestion_control=bbr

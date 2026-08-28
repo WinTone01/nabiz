@@ -1,40 +1,43 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 340" width="900" height="340" role="img" aria-label="Telling block types apart with a split ClientHello">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 366" width="900" height="366" role="img" aria-label="Telling block types apart with a split ClientHello">
   <style>
     .t { font-family: ui-monospace,SFMono-Regular,Menlo,monospace; }
     .h { font-size: 15px; font-weight: 700; }
-    .n { font-size: 13px; font-weight: 700; }
+    .n { font-size: 12.5px; font-weight: 700; }
     .b { font-size: 12px; fill: #8b8ba4; }
-    .s { font-size: 11.5px; fill: #6f6f82; }
+    .l { font-size: 12px; font-weight: 700; fill: #8b8ba4; }
+    .p { font-size: 11.5px; fill: #6f6f82; }
   </style>
   <text class="t h" x="24" y="30" fill="#61d4ec">Same request, three shapes — the failure tells you the block type</text>
 
   <!-- whole -->
-  <text class="t n" x="24" y="76" fill="#8b8ba4">whole</text>
-  <rect x="110" y="58" width="250" height="26" rx="5" fill="none" stroke="#8b8ba4" stroke-width="1.5"/>
-  <text class="t s" x="126" y="76">ClientHello · SNI inside</text>
-  <line x1="360" y1="71" x2="470" y2="71" stroke="#32324a" stroke-width="1.5" stroke-dasharray="3 3"/>
-  <text class="t n" x="486" y="76" fill="#ff7378">RST / silence</text>
+  <text class="t l" x="24" y="76">whole</text>
+  <rect x="112" y="58" width="252" height="26" rx="5" fill="none" stroke="#8b8ba4" stroke-width="1.5"/>
+  <text class="t p" x="128" y="76">ClientHello · SNI inside</text>
+  <line x1="376" y1="71" x2="470" y2="71" stroke="#4a4a66" stroke-width="1.5" stroke-dasharray="3 4"/>
+  <text class="t n" x="482" y="76" fill="#ff7378">RST / silence</text>
 
   <!-- split at record header -->
-  <text class="t n" x="24" y="146" fill="#8b8ba4">split@2</text>
-  <rect x="110" y="128" width="34" height="26" rx="5" fill="none" stroke="#f3c552" stroke-width="1.5"/>
-  <rect x="152" y="128" width="208" height="26" rx="5" fill="none" stroke="#f3c552" stroke-width="1.5"/>
-  <text class="t s" x="120" y="146">hdr</text>
-  <text class="t s" x="168" y="146">rest of the ClientHello</text>
-  <line x1="360" y1="141" x2="470" y2="141" stroke="#32324a" stroke-width="1.5" stroke-dasharray="3 3"/>
-  <text class="t n" x="486" y="146" fill="#5fdf90">handshake completes</text>
+  <text class="t l" x="24" y="136" fill="#f3c552">split@2</text>
+  <rect x="112" y="118" width="46" height="26" rx="5" fill="none" stroke="#f3c552" stroke-width="1.5"/>
+  <text class="t p" x="124" y="136">hdr</text>
+  <rect x="166" y="118" width="198" height="26" rx="5" fill="none" stroke="#f3c552" stroke-width="1.5"/>
+  <text class="t p" x="180" y="136">rest of the ClientHello</text>
+  <line x1="376" y1="131" x2="470" y2="131" stroke="#4a4a66" stroke-width="1.5" stroke-dasharray="3 4"/>
+  <text class="t n" x="482" y="136" fill="#5fdf90">handshake completes</text>
 
-  <!-- split across SNI -->
-  <text class="t n" x="24" y="216" fill="#8b8ba4">split@sni</text>
-  <rect x="110" y="198" width="128" height="26" rx="5" fill="none" stroke="#f3c552" stroke-width="1.5"/>
-  <rect x="246" y="198" width="114" height="26" rx="5" fill="none" stroke="#f3c552" stroke-width="1.5"/>
-  <text class="t s" x="126" y="216">…exam</text>
-  <text class="t s" x="262" y="216">ple.com…</text>
-  <line x1="360" y1="211" x2="470" y2="211" stroke="#32324a" stroke-width="1.5" stroke-dasharray="3 3"/>
-  <text class="t n" x="486" y="216" fill="#5fdf90">handshake completes</text>
+  <!-- split across the SNI -->
+  <text class="t l" x="24" y="196" fill="#f3c552">split@sni</text>
+  <rect x="112" y="178" width="126" height="26" rx="5" fill="none" stroke="#f3c552" stroke-width="1.5"/>
+  <text class="t p" x="126" y="196">…exam</text>
+  <rect x="246" y="178" width="118" height="26" rx="5" fill="none" stroke="#f3c552" stroke-width="1.5"/>
+  <text class="t p" x="260" y="196">ple.com…</text>
+  <line x1="376" y1="191" x2="470" y2="191" stroke="#4a4a66" stroke-width="1.5" stroke-dasharray="3 4"/>
+  <text class="t n" x="482" y="196" fill="#5fdf90">handshake completes</text>
 
   <!-- verdict -->
-  <rect x="24" y="248" width="852" height="72" rx="10" fill="none" stroke="#b79cff" stroke-width="1.5"/>
-  <text class="t b" x="46" y="276">Only the split versions get through → the DPI matches SNI inside a single packet and never reassembles the stream.</text>
-  <text class="t b" x="46" y="300">That is precisely what zapret’s <tspan fill="#b79cff" font-weight="700">multisplit</tspan> / <tspan fill="#b79cff" font-weight="700">multidisorder</tspan> strategies address — a hint, not a replacement for blockcheck.</text>
+  <rect x="24" y="230" width="852" height="118" rx="10" fill="none" stroke="#b79cff" stroke-width="1.5"/>
+  <text class="t b" x="46" y="260">Only the split versions get through, so the DPI matches SNI inside a single</text>
+  <text class="t b" x="46" y="284">packet and never reassembles the stream.</text>
+  <text class="t b" x="46" y="314">That is what zapret's <tspan fill="#b79cff" font-weight="700">multisplit</tspan> / <tspan fill="#b79cff" font-weight="700">multidisorder</tspan> strategies address — a hint,</text>
+  <text class="t b" x="46" y="338">not a replacement for blockcheck.</text>
 </svg>

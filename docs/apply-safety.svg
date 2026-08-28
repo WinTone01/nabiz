@@ -1,67 +1,69 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 380" width="900" height="380" role="img" aria-label="How applying a change stays reversible">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 400" width="900" height="400" role="img" aria-label="How applying a change stays reversible">
   <style>
     .t { font-family: ui-monospace,SFMono-Regular,Menlo,monospace; }
     .h { font-size: 15px; font-weight: 700; }
     .n { font-size: 13px; font-weight: 700; }
     .b { font-size: 12px; fill: #8b8ba4; }
-    .s { font-size: 11.5px; fill: #6f6f82; }
+    .s { font-size: 11px; fill: #6f6f82; }
   </style>
-  <text class="t h" x="24" y="30" fill="#61d4ec">Applying a change without betting your connection on it</text>
-
-  <!-- step boxes -->
-  <g>
-    <rect x="24" y="56" width="164" height="86" rx="10" fill="none" stroke="#b79cff" stroke-width="1.5"/>
-    <text class="t n" x="44" y="82" fill="#b79cff">1 · Snapshot</text>
-    <text class="t b" x="44" y="104">files copied,</text>
-    <text class="t b" x="44" y="122">values captured</text>
-
-    <rect x="208" y="56" width="164" height="86" rx="10" fill="none" stroke="#b79cff" stroke-width="1.5"/>
-    <text class="t n" x="228" y="82" fill="#b79cff">2 · Undo script</text>
-    <text class="t b" x="228" y="104">plain bash, from</text>
-    <text class="t b" x="228" y="122">your real values</text>
-
-    <rect x="392" y="56" width="164" height="86" rx="10" fill="none" stroke="#f3c552" stroke-width="1.5"/>
-    <text class="t n" x="412" y="82" fill="#f3c552">3 · Apply</text>
-    <text class="t b" x="412" y="104">one privileged</text>
-    <text class="t b" x="412" y="122">invocation</text>
-
-    <rect x="576" y="56" width="164" height="86" rx="10" fill="none" stroke="#61d4ec" stroke-width="1.5"/>
-    <text class="t n" x="596" y="82" fill="#61d4ec">4 · Verify</text>
-    <text class="t b" x="596" y="104">ping + DNS + TLS</text>
-    <text class="t b" x="596" y="122">all must pass</text>
-  </g>
-
-  <!-- arrows -->
-  <g stroke="#32324a" stroke-width="1.5" fill="none">
-    <path d="M188 99 H208" marker-end="url(#a)"/>
-    <path d="M372 99 H392" marker-end="url(#a)"/>
-    <path d="M556 99 H576" marker-end="url(#a)"/>
-  </g>
   <defs>
-    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
-      <path d="M0 0 L10 5 L0 10 z" fill="#32324a"/>
+    <marker id="ga" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0 0 L10 5 L0 10 z" fill="#4a4a66"/>
     </marker>
-    <marker id="g" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+    <marker id="gg" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
       <path d="M0 0 L10 5 L0 10 z" fill="#5fdf90"/>
     </marker>
-    <marker id="r" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+    <marker id="gr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
       <path d="M0 0 L10 5 L0 10 z" fill="#ff7378"/>
     </marker>
   </defs>
 
-  <!-- outcomes -->
-  <path d="M740 99 H800 V190 H700" stroke="#5fdf90" stroke-width="1.5" fill="none" marker-end="url(#g)"/>
-  <rect x="516" y="164" width="184" height="52" rx="10" fill="none" stroke="#5fdf90" stroke-width="1.5"/>
-  <text class="t n" x="536" y="196" fill="#5fdf90">✓ kept</text>
+  <text class="t h" x="24" y="30" fill="#61d4ec">Applying a change without betting your connection on it</text>
 
-  <path d="M658 142 V190 H520" stroke="#ff7378" stroke-width="1.5" fill="none" marker-end="url(#r)"/>
-  <rect x="220" y="164" width="296" height="52" rx="10" fill="none" stroke="#ff7378" stroke-width="1.5"/>
-  <text class="t n" x="240" y="196" fill="#ff7378">✕ rolled back automatically</text>
+  <!-- four steps -->
+  <rect x="24"  y="54" width="180" height="88" rx="10" fill="none" stroke="#b79cff" stroke-width="1.5"/>
+  <text class="t n" x="44" y="80" fill="#b79cff">1 · Snapshot</text>
+  <text class="t b" x="44" y="104">files copied,</text>
+  <text class="t b" x="44" y="124">values captured</text>
 
-  <!-- footer notes -->
-  <rect x="24" y="246" width="852" height="110" rx="10" fill="none" stroke="#32324a" stroke-width="1.5"/>
-  <text class="t b" x="46" y="276">• The undo script works without nabiz installed — it is just bash and your old values.</text>
-  <text class="t b" x="46" y="300">• One password prompt for the whole batch, so a cancelled prompt leaves nothing half-applied.</text>
-  <text class="t b" x="46" y="324">• Changes that can renegotiate the link are excluded unless you ask for them explicitly.</text>
-  <text class="t s" x="46" y="346">nabiz rollback   ·   ~/.local/share/nabiz/snapshots/&lt;stamp&gt;/restore.sh</text>
+  <rect x="232" y="54" width="180" height="88" rx="10" fill="none" stroke="#b79cff" stroke-width="1.5"/>
+  <text class="t n" x="252" y="80" fill="#b79cff">2 · Undo script</text>
+  <text class="t b" x="252" y="104">plain bash, from</text>
+  <text class="t b" x="252" y="124">your real values</text>
+
+  <rect x="440" y="54" width="180" height="88" rx="10" fill="none" stroke="#f3c552" stroke-width="1.5"/>
+  <text class="t n" x="460" y="80" fill="#f3c552">3 · Apply</text>
+  <text class="t b" x="460" y="104">one privileged</text>
+  <text class="t b" x="460" y="124">invocation</text>
+
+  <rect x="648" y="54" width="180" height="88" rx="10" fill="none" stroke="#61d4ec" stroke-width="1.5"/>
+  <text class="t n" x="668" y="80" fill="#61d4ec">4 · Verify</text>
+  <text class="t b" x="668" y="104">ping + DNS + TLS</text>
+  <text class="t b" x="668" y="124">all must pass</text>
+
+  <g stroke="#4a4a66" stroke-width="1.5" fill="none">
+    <path d="M204 98 H226" marker-end="url(#ga)"/>
+    <path d="M412 98 H434" marker-end="url(#ga)"/>
+    <path d="M620 98 H642" marker-end="url(#ga)"/>
+  </g>
+
+  <!-- one junction under step 4, then two clearly separated outcomes -->
+  <line x1="738" y1="142" x2="738" y2="176" stroke="#4a4a66" stroke-width="1.5"/>
+  <line x1="330" y1="176" x2="738" y2="176" stroke="#4a4a66" stroke-width="1.5"/>
+  <path d="M645 176 V214" stroke="#5fdf90" stroke-width="1.5" fill="none" marker-end="url(#gg)"/>
+  <path d="M330 176 V214" stroke="#ff7378" stroke-width="1.5" fill="none" marker-end="url(#gr)"/>
+  <text class="t s" x="654" y="200" fill="#5fdf90">pass</text>
+  <text class="t s" x="292" y="200" fill="#ff7378">fail</text>
+
+  <rect x="180" y="222" width="300" height="48" rx="10" fill="none" stroke="#ff7378" stroke-width="1.5"/>
+  <text class="t n" x="202" y="252" fill="#ff7378">rolled back automatically</text>
+
+  <rect x="520" y="222" width="250" height="48" rx="10" fill="none" stroke="#5fdf90" stroke-width="1.5"/>
+  <text class="t n" x="542" y="252" fill="#5fdf90">kept</text>
+
+  <!-- notes -->
+  <rect x="24" y="292" width="852" height="98" rx="10" fill="none" stroke="#32324a" stroke-width="1.5"/>
+  <text class="t b" x="46" y="320">The undo script works without nabiz installed — it is just bash and your old values.</text>
+  <text class="t b" x="46" y="344">One password prompt per batch, so a cancelled prompt leaves nothing half-applied.</text>
+  <text class="t b" x="46" y="368">Changes that can renegotiate the link are excluded unless you ask for them.</text>
 </svg>

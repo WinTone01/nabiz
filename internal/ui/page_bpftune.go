@@ -47,30 +47,32 @@ func (p *bpftunePage) View(a *App) string { return p.viewport.View() }
 
 func (p *bpftunePage) body(a *App) string {
 	state := a.Env.bpftune
-	var b strings.Builder
-	b.WriteString(sSection.Render("bpftune") + "\n")
-	b.WriteString(sDim.Render(wrap(i18n.T("help.bpftune.intro"), p.width-2)) + "\n\n")
 	if !state.Installed {
-		b.WriteString(emptyState("ui.notinstalled") + "\n")
-		return b.String()
+		return stack(p.width, sectionSpec{"bpftune", emptyState("ui.notinstalled")})
 	}
-	b.WriteString("  " + kv(i18n.T("f.status"), "", sText, 16) + runningTag(state.Running) + "\n")
-	b.WriteString("  " + kv(i18n.T("f.version"),
-		util.Truncate(state.Version, p.width-24), sText, 16) + "\n")
-	b.WriteString("  " + kv(i18n.T("f.autostart"), boolText(state.Enabled), sText, 16) + "\n\n")
-
 	rtt := liveRTT(a)
-	if bdp := sysinfo.BDPBytes(a.Env.link.SpeedMbit, rtt); bdp > 0 {
-		b.WriteString("  " + kv(i18n.T("f.bdp"), fmt.Sprintf("%d Mbit × %.0f ms = %s",
-			a.Env.link.SpeedMbit, rtt, util.HumanBytes(bdp)), sBold, 24) + "\n")
-		b.WriteString("  " + sFaint.Render(i18n.T("help.bpftune.bdp")) + "\n\n")
+	bdp := sysinfo.BDPBytes(a.Env.link.SpeedMbit, rtt)
+
+	status := []string{
+		sDim.Render(wrap(i18n.T("help.bpftune.intro"), p.width-6)),
+		"",
+		sDim.Render(padRight(i18n.T("f.status"), 16)) + " " + runningTag(state.Running),
+		kv(i18n.T("f.version"), util.Truncate(state.Version, p.width-28), sText, 16),
+		kv(i18n.T("f.autostart"), boolText(state.Enabled), sText, 16),
+	}
+	if bdp > 0 {
+		status = append(status, "",
+			kv(i18n.T("f.bdp"), fmt.Sprintf("%d Mbit x %.0f ms = %s",
+				a.Env.link.SpeedMbit, rtt, util.HumanBytes(bdp)), sBold, 16),
+			sFaint.Render(i18n.T("help.bpftune.bdp")))
 	}
 
+	var changes string
 	if len(state.Changes) > 0 {
 		cols := []column{
-			{title: i18n.T("col.tunable"), width: 38},
-			{title: i18n.T("col.from"), width: 22},
-			{title: i18n.T("col.to"), width: 22},
+			{title: i18n.T("col.tunable"), width: 36},
+			{title: i18n.T("col.from"), width: 20},
+			{title: i18n.T("col.to"), width: 20},
 			{title: i18n.T("col.times"), width: 5, right: true},
 		}
 		var rows [][]cell
@@ -80,18 +82,16 @@ func (p *bpftunePage) body(a *App) string {
 				plain(change.To), numf("%d", change.Count),
 			})
 		}
-		b.WriteString(sSection.Render(i18n.T("panel.changes")) + "\n" +
-			renderTable(cols, rows))
+		changes = strings.TrimRight(renderTable(cols, rows), "\n")
 		for _, change := range state.Changes {
 			if change.Reason != "" {
-				b.WriteString("  " + sFaint.Render(change.Tunable+": "+change.Reason) + "\n")
+				changes += "\n" + sFaint.Render(change.Tunable+": "+change.Reason)
 			}
 		}
-		b.WriteString("\n")
 	}
 
+	var congestion string
 	if len(state.CCVotes) > 0 {
-		b.WriteString(sSection.Render(i18n.T("panel.cc")) + "\n")
 		total := 0
 		names := make([]string, 0, len(state.CCVotes))
 		for name, count := range state.CCVotes {
@@ -99,34 +99,43 @@ func (p *bpftunePage) body(a *App) string {
 			names = append(names, name)
 		}
 		sort.Strings(names)
+		var lines []string
 		for _, name := range names {
 			count := state.CCVotes[name]
 			share := 0.0
 			if total > 0 {
 				share = float64(count) / float64(total)
 			}
-			b.WriteString(fmt.Sprintf("  %s %s %s\n", padRight(name, 10),
+			lines = append(lines, fmt.Sprintf("%s %s %s", padRight(name, 10),
 				meter(share, 26, sAcc),
 				sText.Render(fmt.Sprintf("%d  (%.0f%%)", count, share*100))))
 		}
-		b.WriteString("\n")
+		congestion = strings.Join(lines, "\n")
 	}
 
-	b.WriteString(sSection.Render(i18n.T("sec.assessment")) + "\n")
+	var assessment []string
 	for _, note := range sysinfo.AssessBpftune(state, a.Env.link.SpeedMbit, rtt,
 		a.Env.health.RetransPct) {
-		b.WriteString(fmt.Sprintf(" %s %s\n",
+		assessment = append(assessment, fmt.Sprintf("%s %s",
 			levelStyle(note.Level).Render(levelMark(note.Level)),
-			sText.Render(wrapIndent(note.Text, p.width-6, "   "))))
+			sText.Render(wrapIndent(note.Text, p.width-10, "  "))))
 		if note.Hint != "" {
-			b.WriteString("   " + sFaint.Render(wrapIndent(note.Hint, p.width-8, "   ")) + "\n")
+			assessment = append(assessment,
+				"  "+sFaint.Render(wrapIndent(note.Hint, p.width-12, "  ")))
 		}
 	}
-	b.WriteString("\n" + sFaint.Render("a → "+i18n.T("key.ab")+"    r → "+i18n.T("key.run")) + "\n")
-	if a.AB != nil && a.AB.target == "bpftune" {
-		b.WriteString("\n" + abTable(a, "bpftune ON", "bpftune OFF"))
+
+	specs := []sectionSpec{
+		{"bpftune", strings.Join(status, "\n")},
+		{i18n.T("panel.changes"), changes},
+		{i18n.T("panel.cc"), congestion},
+		{i18n.T("sec.assessment"), strings.Join(assessment, "\n")},
 	}
-	return b.String()
+	if a.AB != nil && a.AB.target == "bpftune" {
+		specs = append(specs, sectionSpec{i18n.T("misc.ab_result"),
+			strings.TrimRight(abRows(a, "bpftune ON", "bpftune OFF"), "\n")})
+	}
+	return stack(p.width, specs...)
 }
 
 func liveRTT(a *App) float64 {
@@ -148,8 +157,8 @@ func boolText(value bool) string {
 	return i18n.T("ui.no")
 }
 
-// abTable renders an A/B comparison; shared by the bpftune and Unwall pages.
-func abTable(a *App, labelA, labelB string) string {
+// abRows renders the A/B comparison body; the caller wraps it in a panel.
+func abRows(a *App, labelA, labelB string) string {
 	if a.AB == nil {
 		return ""
 	}
@@ -175,5 +184,5 @@ func abTable(a *App, labelA, labelB string) string {
 			styled(fmt.Sprintf("%+.2f", row.Delta), style),
 		})
 	}
-	return sSection.Render(i18n.T("misc.ab_result")) + "\n" + renderTable(cols, rows)
+	return renderTable(cols, rows)
 }

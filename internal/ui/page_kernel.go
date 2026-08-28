@@ -40,27 +40,27 @@ func (p *kernelPage) Update(a *App, msg tea.Msg) tea.Cmd {
 func (p *kernelPage) View(a *App) string { return p.viewport.View() }
 
 func (p *kernelPage) body(a *App) string {
-	var b strings.Builder
-	b.WriteString(sSection.Render(i18n.T("nav.kernel")) + "\n")
-	b.WriteString(sDim.Render(wrap(i18n.T("help.kernel.intro"), p.width-2)) + "\n\n")
-
 	history := a.Env.linkLog
 	dropStyle := sOK
 	if history.Drops > 0 {
 		dropStyle = sBad
 	}
-	b.WriteString("  " + kv(i18n.T("col.kernelv"), a.Env.kernelNow, sBold, 18) + "\n")
+	summary := []string{
+		sDim.Render(wrap(i18n.T("help.kernel.intro"), p.width-6)),
+		"",
+		kv(i18n.T("col.kernelv"), a.Env.kernelNow, sBold, 18),
+	}
 	if history.Available {
-		b.WriteString("  " + kv(i18n.T("col.drops"),
+		summary = append(summary, kv(i18n.T("col.drops"),
 			fmt.Sprintf("%d  (%.0f min, %.0f s)", history.Drops,
-				history.SpanMinutes(), history.DownSeconds), dropStyle, 18) + "\n")
+				history.SpanMinutes(), history.DownSeconds), dropStyle, 18))
 		if history.Downshifts > 0 {
-			b.WriteString("  " + kv("downshift", fmt.Sprintf("%d × %s",
-				history.Downshifts, history.DownshiftNote), sBad, 18) + "\n")
+			summary = append(summary, kv("downshift", fmt.Sprintf("%d x %s",
+				history.Downshifts, history.DownshiftNote), sBad, 18))
 		}
 	}
-	b.WriteString("\n")
 
+	var perKernel string
 	if len(a.Env.kernels) > 0 {
 		cols := []column{
 			{title: "", width: 1},
@@ -84,7 +84,7 @@ func (p *kernelPage) body(a *App) string {
 			}
 			marker := ""
 			if entry.Kernel == a.Env.kernelNow {
-				marker = "›"
+				marker = ">"
 			}
 			measured := i18n.T("misc.unmeasured")
 			if entry.Measured {
@@ -98,11 +98,11 @@ func (p *kernelPage) body(a *App) string {
 				styled(fmt.Sprintf("%.1f", entry.DropsPerHr), style),
 			})
 		}
-		b.WriteString(renderTable(cols, rows) + "\n")
+		perKernel = strings.TrimRight(renderTable(cols, rows), "\n")
 	}
 
+	var boots string
 	if len(a.Env.reboots) > 0 {
-		b.WriteString(sSection.Render(i18n.T("panel.boots")) + "\n")
 		cols := []column{
 			{title: "", width: 1},
 			{title: i18n.T("col.kernelv"), width: 24},
@@ -111,12 +111,12 @@ func (p *kernelPage) body(a *App) string {
 		}
 		var rows [][]cell
 		for index, reboot := range a.Env.reboots {
-			if index >= 12 {
+			if index >= 10 {
 				break
 			}
 			marker := ""
 			if reboot.Current {
-				marker = "›"
+				marker = ">"
 			}
 			rows = append(rows, []cell{
 				styled(marker, sAcc), plain(reboot.Kernel),
@@ -124,17 +124,16 @@ func (p *kernelPage) body(a *App) string {
 				plain(util.ShortDuration(reboot.Uptime)),
 			})
 		}
-		b.WriteString(renderTable(cols, rows))
-		if len(a.Env.reboots) > 12 {
-			b.WriteString(sFaint.Render(i18n.T("ui.more", len(a.Env.reboots)-12)) + "\n")
+		boots = strings.TrimRight(renderTable(cols, rows), "\n")
+		if len(a.Env.reboots) > 10 {
+			boots += "\n" + sFaint.Render(i18n.T("ui.more", len(a.Env.reboots)-10))
 		}
-		b.WriteString("\n")
 	}
 
+	var log []string
 	if events := a.Env.linkLog.Events; len(events) > 0 {
-		b.WriteString(sSection.Render(i18n.T("panel.log")) + "\n")
-		if len(events) > 20 {
-			events = events[len(events)-20:]
+		if len(events) > 16 {
+			events = events[len(events)-16:]
 		}
 		for _, event := range events {
 			style, text := sBad, "link down"
@@ -144,9 +143,13 @@ func (p *kernelPage) body(a *App) string {
 					style, text = sWarn, text+" (downshifted)"
 				}
 			}
-			b.WriteString("  " + sFaint.Render(event.At.Format("15:04:05")) + " " +
-				style.Render(text) + "\n")
+			log = append(log, sFaint.Render(event.At.Format("15:04:05"))+" "+style.Render(text))
 		}
 	}
-	return b.String()
+
+	return stack(p.width,
+		sectionSpec{i18n.T("nav.kernel"), strings.Join(summary, "\n")},
+		sectionSpec{i18n.T("panel.stability"), perKernel},
+		sectionSpec{i18n.T("panel.boots"), boots},
+		sectionSpec{i18n.T("panel.log"), strings.Join(log, "\n")})
 }

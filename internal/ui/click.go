@@ -54,10 +54,10 @@ func button(id, label string, kind int, enabled bool) string {
 
 // checkbox renders a clickable checkbox with a label.
 func checkbox(id, label string, checked, enabled bool) string {
-	box := "☐"
+	box := "[ ]"
 	style := sText
 	if checked {
-		box, style = "☑", sAcc
+		box, style = "[x]", sAcc
 	}
 	if !enabled {
 		style = sFaint

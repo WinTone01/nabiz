@@ -155,3 +155,32 @@ func scoreLine(result suite.Result) string {
 
 // emptyState is the consistent "nothing here yet" line.
 func emptyState(key string) string { return sFaint.Render(i18n.T(key)) }
+
+// sectionSpec is one titled block on a page.
+type sectionSpec struct {
+	title string
+	body  string
+}
+
+// stack renders sections as titled panels, one under the other. Every page is
+// built from these so no screen is a wall of text with a rule through it: if
+// something has a heading, it has a border.
+func stack(width int, items ...sectionSpec) string {
+	var parts []string
+	for _, item := range items {
+		if strings.TrimSpace(item.body) == "" {
+			continue
+		}
+		parts = append(parts, panel(item.title, width, item.body))
+	}
+	return lipgloss.JoinVertical(lipgloss.Left, parts...)
+}
+
+// kvBlock renders aligned key/value lines as a panel body.
+func kvBlock(keyWidth int, rows [][2]string) string {
+	var lines []string
+	for _, row := range rows {
+		lines = append(lines, kv(row[0], row[1], sText, keyWidth))
+	}
+	return strings.Join(lines, "\n")
+}

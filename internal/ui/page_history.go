@@ -40,22 +40,19 @@ func (p *historyPage) View(a *App) string { return p.viewport.View() }
 
 func (p *historyPage) body(a *App) string {
 	if len(a.History) == 0 {
-		return emptyState("misc.no_runs")
+		return stack(p.width, sectionSpec{i18n.T("sec.trend"), emptyState("misc.no_runs")})
 	}
-	var b strings.Builder
-	b.WriteString(sSection.Render(i18n.T("sec.trend")) + "\n")
 	series := report.ScoreSeries(a.History)
-	b.WriteString("  " + sOK.Render(stats.SparklineF(series, min(len(series), p.width-8))) + "\n")
+	trend := []string{sOK.Render(stats.SparklineF(series, min(len(series), p.width-10)))}
 	if len(series) > 0 {
-		b.WriteString("  " + sFaint.Render(fmt.Sprintf("%.0f … %.0f",
-			series[0], series[len(series)-1])) + "\n")
+		trend = append(trend, sFaint.Render(fmt.Sprintf("%.0f … %.0f",
+			series[0], series[len(series)-1])))
 	}
 	if a.Baseline != nil {
-		b.WriteString("\n  " + kv(i18n.T("f.baseline"),
+		trend = append(trend, "", kv(i18n.T("f.baseline"),
 			fmt.Sprintf("%.1f (%s) · %s", a.Baseline.Score, a.Baseline.Grade,
-				a.Baseline.StartedAt.Format("2006-01-02 15:04")), sAcc, 14) + "\n")
+				a.Baseline.StartedAt.Format("2006-01-02 15:04")), sAcc, 14))
 	}
-	b.WriteString("\n")
 
 	cols := []column{
 		{title: i18n.T("col.date"), width: 17},
@@ -77,6 +74,7 @@ func (p *historyPage) body(a *App) string {
 			styled(fmt.Sprint(entry.Warn), sWarn),
 		})
 	}
-	b.WriteString(renderTable(cols, rows))
-	return b.String()
+	return stack(p.width,
+		sectionSpec{i18n.T("sec.trend"), strings.Join(trend, "\n")},
+		sectionSpec{i18n.T("nav.reports"), strings.TrimRight(renderTable(cols, rows), "\n")})
 }
