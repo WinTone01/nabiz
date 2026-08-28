@@ -48,7 +48,7 @@ func (p *bpftunePage) render(a *App) string {
 	bdp := sysinfo.BDPBytes(a.Env.link.SpeedMbit, rtt)
 
 	var list kvList
-	list.addRaw(i18n.T("f.status"), runningTag(state.Running))
+	list.addRaw(i18n.T("f.status"), bpftuneTag(state))
 	list.add(i18n.T("f.version"), truncate(state.Version, inner-22))
 	list.add(i18n.T("f.autostart"), boolText(state.Enabled))
 	if bdp > 0 {
@@ -65,7 +65,7 @@ func (p *bpftunePage) render(a *App) string {
 	}
 
 	sections := []section{
-		{title: "bpftune", badge: runningTag(state.Running),
+		{title: "bpftune", badge: bpftuneTag(state),
 			body: strings.Join(status, "\n")},
 		{title: i18n.T("panel.changes"), badge: fmt.Sprint(len(state.Changes)),
 			body: p.changes(state, inner)},

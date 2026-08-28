@@ -196,7 +196,11 @@ func (m *model) headerFacts() []string {
 		parts = append(parts, statusDot("unwall", env.unwall.Running))
 	}
 	if env.bpftune.Installed {
-		parts = append(parts, statusDot("bpftune", env.bpftune.Running))
+		if env.bpftune.Failed {
+			parts = append(parts, sBad.Render("!! bpftune"))
+		} else {
+			parts = append(parts, statusDot("bpftune", env.bpftune.Running))
+		}
 	}
 	return parts
 }

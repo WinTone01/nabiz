@@ -336,5 +336,6 @@ func init() {
 		"key.dismiss":          {"dismiss", "kapat"},
 		"apply.restore_hidden": {"Show %d hidden", "%d gizliyi göster"},
 		"apply.dismiss_row":    {"[x dismiss]", "[x kapat]"},
+		"ui.stopped_by_nabiz":  {"stopped by nabiz", "nabiz durdurdu"},
 	})
 }

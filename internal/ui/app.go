@@ -119,7 +119,7 @@ func snapshotLive() liveEnv {
 		conntrack: probe.ReadConntrack(),
 		health:    probe.ReadSNMP().Health(),
 		unwall:    sysinfo.ReadUnwall(),
-		bpftune:   sysinfo.ReadBpftune(),
+		bpftune:   sysinfo.ReadBpftune().WithAppliedChanges(config.ChangesInForce()),
 		systemDNS: probe.SystemResolvers(),
 		upstream:  probe.UpstreamResolvers(),
 		sysctls:   probe.ReadSysctls(),

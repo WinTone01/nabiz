@@ -112,6 +112,8 @@ func init() {
 
 		// --- bpftune --------------------------------------------------------
 		"fnd.bpftune-stopped.title":      {"bpftune is installed but not running; the values it wrote stay until reboot", "bpftune kurulu ama çalışmıyor; yazdığı değerler yeniden başlatana kadar kalır"},
+		"fnd.bpftune-off-by-nabiz.title": {"bpftune is stopped because nabiz stopped it - this is not a fault", "bpftune duruyor çünkü onu nabiz durdurdu - bu bir arıza değil"},
+		"fnd.bpftune-off-by-nabiz.hint":  {"the tuner-off change disabled the unit; roll that batch back to bring it running again", "ayarlayıcıyı kapat değişikliği birimi devre dışı bıraktı; tekrar çalışması için o partiyi geri al"},
 		"fnd.bpftune-idle.title":         {"bpftune is running but has not changed anything yet", "bpftune çalışıyor ama henüz hiçbir ayarı değiştirmemiş"},
 		"fnd.bpftune-buffers-high.title": {"tcp_rmem ceiling is %s, %.0f× this line's BDP%s", "tcp_rmem tavanı %s, bu hattın BDP'sinin %.0f katı%s"},
 		"fnd.bpftune-buffers-high.hint":  {"%d Mbit/s × %.0f ms ≈ %s can be in flight; a bigger buffer does not raise throughput, it adds queueing and latency under congestion. Pin it with: sysctl -w net.ipv4.tcp_rmem=\"4096 131072 %d\"", "%d Mbit/s × %.0f ms ≈ %s veri yolda olabilir; daha büyük tampon hızı artırmaz, tıkanıklıkta kuyruk ve gecikme yaratır. Sabitlemek için: sysctl -w net.ipv4.tcp_rmem=\"4096 131072 %d\""},

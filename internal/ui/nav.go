@@ -148,8 +148,18 @@ func navZone(id pageID) string { return fmt.Sprintf("nav:%d", id) }
 func (n *nav) badge(a *App, id pageID) (string, bool) {
 	switch id {
 	case pageAdvice:
-		if result := a.LastRun(); result != nil && len(result.Advice) > 0 {
-			return fmt.Sprint(len(result.Advice)), true
+		// dismissed advice is not shown on the page, so counting it here left
+		// the badge promising items the list does not have
+		if result := a.LastRun(); result != nil {
+			open := 0
+			for _, advice := range result.Advice {
+				if !a.Dismissed(advice.ID) {
+					open++
+				}
+			}
+			if open > 0 {
+				return fmt.Sprint(open), true
+			}
 		}
 	case pageMonitor:
 		if a.Watcher != nil {

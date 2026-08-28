@@ -109,7 +109,7 @@ func (m *model) startAB(target string) tea.Cmd {
 		state := sysinfo.ReadUnwall()
 		wasRunning, setState = state.Running, sysinfo.SetUnwall
 	case "bpftune":
-		state := sysinfo.ReadBpftune()
+		state := sysinfo.ReadBpftune().WithAppliedChanges(config.ChangesInForce())
 		wasRunning, setState = state.Running, sysinfo.SetBpftune
 	default:
 		return nil

@@ -63,7 +63,7 @@ func SnapshotEnv(cfg config.Config) Env {
 		Sysctls:     probe.ReadSysctls(),
 		TCPHealth:   probe.ReadSNMP().Health(),
 		Unwall:      sysinfo.ReadUnwall(),
-		Bpftune:     sysinfo.ReadBpftune(),
+		Bpftune:     sysinfo.ReadBpftune().WithAppliedChanges(config.ChangesInForce()),
 		SystemDNS:   probe.SystemResolvers(),
 		UpstreamDNS: probe.UpstreamResolvers(),
 		DNSPaths:    probe.UpstreamDetail(),

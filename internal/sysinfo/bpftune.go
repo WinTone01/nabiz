@@ -63,19 +63,22 @@ type Tunable struct {
 
 // BpftuneState is everything we know about the auto-tuner.
 type BpftuneState struct {
-	Installed  bool           `json:"installed"`
-	Running    bool           `json:"running"`
-	Failed     bool           `json:"failed"`
-	FailDetail string         `json:"fail_detail,omitempty"`
-	Overridden bool           `json:"overridden,omitempty"`
-	Enabled    bool           `json:"enabled"`
-	Version    string         `json:"version,omitempty"`
-	Changes    []Change       `json:"changes"`
-	History    []Step         `json:"history,omitempty"`
-	CCVotes    map[string]int `json:"cc_votes,omitempty"`
-	Tunables   []Tunable      `json:"tunables"`
-	Tuners     []string       `json:"tuners,omitempty"`
-	JournalErr string         `json:"journal_err,omitempty"`
+	Installed  bool   `json:"installed"`
+	Running    bool   `json:"running"`
+	Failed     bool   `json:"failed"`
+	FailDetail string `json:"fail_detail,omitempty"`
+	Overridden bool   `json:"overridden,omitempty"`
+	// StoppedByNabiz records that a change this tool applied is what stopped
+	// the unit, so the state can be explained instead of merely reported.
+	StoppedByNabiz bool           `json:"stopped_by_nabiz,omitempty"`
+	Enabled        bool           `json:"enabled"`
+	Version        string         `json:"version,omitempty"`
+	Changes        []Change       `json:"changes"`
+	History        []Step         `json:"history,omitempty"`
+	CCVotes        map[string]int `json:"cc_votes,omitempty"`
+	Tunables       []Tunable      `json:"tunables"`
+	Tuners         []string       `json:"tuners,omitempty"`
+	JournalErr     string         `json:"journal_err,omitempty"`
 }
 
 // Label renders the state for a status bar.
@@ -85,6 +88,8 @@ func (s BpftuneState) Label() string {
 		return i18n.T("ui.notinstalled")
 	case s.Failed:
 		return i18n.T("ui.failed")
+	case s.StoppedByNabiz:
+		return i18n.T("ui.stopped_by_nabiz")
 	case !s.Running:
 		return i18n.T("ui.stopped")
 	case len(s.Changes) == 0:
@@ -120,6 +125,16 @@ var (
 	scenarioRe     = regexp.MustCompile(`Scenario '([^']+)' occurred for tunable '([^']+)'`)
 	stampRe        = regexp.MustCompile(`^(\w{3}\s+\d+\s+\d+:\d+:\d+|\S+\s+\d+\s+\d+:\d+:\d+)`)
 )
+
+// WithAppliedChanges marks the state with what nabiz itself is responsible
+// for. A stopped unit is a fault when something else stopped it and a setting
+// when this tool did, and the two deserve different words.
+func (s BpftuneState) WithAppliedChanges(inForce map[string]bool) BpftuneState {
+	if !s.Running && !s.Failed && inForce["bpftune-tuner-off"] {
+		s.StoppedByNabiz = true
+	}
+	return s
+}
 
 // ReadBpftune gathers service state, journal history and live tunables.
 func ReadBpftune() BpftuneState {
@@ -315,6 +330,12 @@ func AssessBpftune(state BpftuneState, linkMbit int, rttMs float64, retransPct f
 		return notes
 	}
 	if !state.Running {
+		if state.StoppedByNabiz {
+			note("info", "bpftune-off-by-nabiz",
+				i18n.T("fnd.bpftune-off-by-nabiz.title"),
+				i18n.T("fnd.bpftune-off-by-nabiz.hint"))
+			return notes
+		}
 		note("info", "bpftune-stopped", i18n.T("fnd.bpftune-stopped.title"), "")
 		return notes
 	}

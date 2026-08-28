@@ -153,6 +153,11 @@ The hostlist recommendations work the same way: the domains a scan proved do
 not need the bypass are intersected with what the hostlist contains right now,
 so removing them removes the recommendation too.
 
+State that nabiz itself caused is reported as its own doing rather than as a
+fault. A stopped `bpftune` is a warning when something else stopped it and a
+plain statement when the tuner-off change did, with a pointer at the batch to
+roll back — the tool should not diagnose its own settings as faults.
+
 A recommendation that will not go away is telling you something did not take —
 `bpftune` raising `tcp_rmem` back up, for instance, which is why there is a
 separate recommendation to stop that tuner rather than keep fighting it. A unit

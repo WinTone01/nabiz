@@ -9,6 +9,7 @@ import (
 
 	"github.com/WinTone01/nabiz/internal/i18n"
 	"github.com/WinTone01/nabiz/internal/stats"
+	"github.com/WinTone01/nabiz/internal/sysinfo"
 )
 
 // The component library.
@@ -200,6 +201,22 @@ func runningTag(running bool) string {
 		return sOK.Render("● " + i18n.T("ui.running"))
 	}
 	return sWarn.Render("○ " + i18n.T("ui.stopped"))
+}
+
+// bpftuneTag reports the unit the way BpftuneState describes it. Failed,
+// stopped on purpose and merely stopped are three different situations and
+// only the first is a warning.
+func bpftuneTag(state sysinfo.BpftuneState) string {
+	switch {
+	case state.Failed:
+		return sBad.Render("!! " + state.Label())
+	case state.StoppedByNabiz:
+		return sMuted.Render("○ " + state.Label())
+	case state.Running:
+		return sOK.Render("● " + state.Label())
+	default:
+		return sWarn.Render("○ " + state.Label())
+	}
 }
 
 func boolText(value bool) string {

@@ -298,7 +298,7 @@ func cmdRun(name string, args []string) error {
 
 func printEnvLine() {
 	unwall := sysinfo.ReadUnwall()
-	bpftune := sysinfo.ReadBpftune()
+	bpftune := sysinfo.ReadBpftune().WithAppliedChanges(config.ChangesInForce())
 	var parts []string
 	if iface, _ := util.DefaultRoute(); iface != "" {
 		parts = append(parts, iface)
@@ -651,7 +651,7 @@ func cmdAB(args []string) error {
 		labelOn, labelOff = "zapret ON", "zapret OFF"
 		wasRunning, setState, canControl = state.Running, sysinfo.SetUnwall, sysinfo.CanControlUnwall()
 	case "bpftune":
-		state := sysinfo.ReadBpftune()
+		state := sysinfo.ReadBpftune().WithAppliedChanges(config.ChangesInForce())
 		if !state.Installed {
 			return errors.New("bpftune " + i18n.T("ui.notinstalled"))
 		}

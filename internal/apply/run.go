@@ -196,7 +196,13 @@ func Rollback(ctx context.Context, dir string) (string, error) {
 	if _, err := os.Stat(script); err != nil {
 		return "", err
 	}
-	return runPrivileged(ctx, script)
+	out, err := runPrivileged(ctx, script)
+	if err == nil {
+		// mark it undone, so nothing later reads this batch as still in force
+		_ = os.WriteFile(filepath.Join(dir, "rolledback"),
+			[]byte(time.Now().Format(time.RFC3339)+"\n"), 0o644)
+	}
+	return out, err
 }
 
 // List returns every stored snapshot, oldest first.

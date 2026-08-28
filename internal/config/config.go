@@ -245,3 +245,43 @@ func (c Config) IdleDuration() time.Duration   { return time.Duration(c.IdleSeco
 func (c Config) MonitorTick() time.Duration {
 	return time.Duration(c.MonitorInterval) * time.Millisecond
 }
+
+// ChangesInForce lists the ids of changes nabiz applied and has not rolled
+// back. A tool that reports the state of a machine it has itself altered has
+// to be able to say which parts of that state are its own doing.
+func ChangesInForce() map[string]bool {
+	out := map[string]bool{}
+	root := filepath.Join(DataDir(), "snapshots")
+	entries, err := os.ReadDir(root)
+	if err != nil {
+		return out
+	}
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		dir := filepath.Join(root, entry.Name())
+		if _, err := os.Stat(filepath.Join(dir, "applied")); err != nil {
+			continue
+		}
+		if _, err := os.Stat(filepath.Join(dir, "rolledback")); err == nil {
+			continue
+		}
+		data, err := os.ReadFile(filepath.Join(dir, "manifest.json"))
+		if err != nil {
+			continue
+		}
+		var manifest struct {
+			Changes []struct {
+				ID string `json:"ID"`
+			} `json:"changes"`
+		}
+		if json.Unmarshal(data, &manifest) != nil {
+			continue
+		}
+		for _, change := range manifest.Changes {
+			out[change.ID] = true
+		}
+	}
+	return out
+}
