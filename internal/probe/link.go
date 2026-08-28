@@ -44,6 +44,7 @@ type LinkInfo struct {
 	SignalDBm    float64          `json:"signal_dbm,omitempty"`
 	TxBitrate    string           `json:"tx_bitrate,omitempty"`
 	Qdisc        string           `json:"qdisc"`
+	Offloads     Offloads         `json:"offloads"`
 	QdiscStats   QdiscStats       `json:"qdisc_stats"`
 	Driver       string           `json:"driver,omitempty"`
 	Advertised   string           `json:"advertised,omitempty"`
@@ -103,6 +104,7 @@ func ReadLink(iface string) LinkInfo {
 	}
 	readQdisc(&info)
 	readEthtool(&info)
+	info.Offloads = ReadOffloads(iface)
 	return info
 }
 

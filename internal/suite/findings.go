@@ -187,7 +187,7 @@ func deriveFindings(result Result, cfg config.Config) []Finding {
 		result.Env.NFQueue.Available) {
 		f.addText(note.Level, note.Key, note.Source, note.Text, note.Hint)
 	}
-	if leak := sysinfo.UnwallDNSLeak(result.Env.Unwall, result.Env.UpstreamDNS); leak != nil {
+	if leak := sysinfo.UnwallDNSLeak(result.Env.Unwall, result.Env.DNSPaths); leak != nil {
 		f.addText(leak.Level, leak.Key, leak.Source, leak.Text, leak.Hint)
 	}
 	if !result.Env.NFQueue.Available && result.Env.NFQueue.Reason == "root" &&

@@ -66,6 +66,7 @@ func SnapshotEnv(cfg config.Config) Env {
 		Bpftune:     sysinfo.ReadBpftune(),
 		SystemDNS:   probe.SystemResolvers(),
 		UpstreamDNS: probe.UpstreamResolvers(),
+		DNSPaths:    probe.UpstreamDetail(),
 	}
 	env.EEE = probe.ReadEEE(env.Link.Iface)
 	env.IPv6 = probe.CheckIPv6(context.Background(), 3*time.Second)

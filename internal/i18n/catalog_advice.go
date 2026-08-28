@@ -377,3 +377,13 @@ func init() {
 		"adv.bpftune-tuner-off.s2": {"A drop-in overrides ExecStart without touching the packaged unit", "Drop-in dosyası paket birimini değiştirmeden ExecStart'ı geçersiz kılar"},
 	})
 }
+
+// The leak fix names the scope it applies to.
+func init() {
+	register(map[string][2]string{
+		"adv.dns-leak.why": {
+			"systemd-resolved keeps a resolver list per link as well as globally, and these scopes still hold a plaintext one: %s. A single timeout on the encrypted resolver is enough to fall back to them.",
+			"systemd-resolved genel listenin yanında link başına da çözücü tutar ve şu kapsamlarda hâlâ düz metin bir tane var: %s. Şifreli çözücüde tek bir zaman aşımı, onlara düşmeye yeter."},
+		"adv.dns-leak.s3": {"%s got these from its DHCP lease, so the fix is to stop accepting them there", "%s bunları DHCP kirasından aldı; çözüm onları orada kabul etmeyi bırakmak"},
+	})
+}

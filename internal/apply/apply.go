@@ -21,6 +21,7 @@ import (
 
 	"github.com/WinTone01/nabiz/internal/config"
 	"github.com/WinTone01/nabiz/internal/i18n"
+	"github.com/WinTone01/nabiz/internal/probe"
 	"github.com/WinTone01/nabiz/internal/suite"
 	"github.com/WinTone01/nabiz/internal/util"
 )
@@ -111,20 +112,13 @@ func Available(result suite.Result) []Change {
 			}
 
 		case "dns-leak":
-			// a drop-in is used rather than editing resolved.conf, so undoing it
-			// is deleting one file rather than reconstructing an edit
-			const dropin = "/etc/systemd/resolved.conf.d/99-nabiz-no-fallback.conf"
-			byID[advice.ID] = Change{
-				ID: advice.ID, Title: advice.Title, Risk: RiskMedium,
-				Apply: []string{
-					"mkdir -p /etc/systemd/resolved.conf.d",
-					"printf '[Resolve]\\nFallbackDNS=\\n' > " + dropin,
-					"systemctl restart systemd-resolved",
-				},
-				Restore: []string{
-					"rm -f " + dropin,
-					"systemctl restart systemd-resolved",
-				},
+			// systemd-resolved keeps a resolver list per link as well as
+			// globally. Clearing the global fallback does nothing about the
+			// addresses a DHCP lease put on the ethernet interface, which is
+			// where the leak usually is - so each leaking scope gets the fix
+			// that actually applies to it.
+			if change, ok := dnsLeakChange(advice, result); ok {
+				byID[advice.ID] = change
 			}
 
 		case "eee-off":
@@ -428,6 +422,60 @@ func extraChanges(result suite.Result, iface string, sysctls map[string]string,
 			})
 		}
 	}
+}
+
+// dnsLeakChange builds the removal for whichever scopes are leaking.
+func dnsLeakChange(advice suite.Advice, result suite.Result) (Change, bool) {
+	leaks := probe.PlaintextLeaks(result.Env.DNSPaths)
+	if len(leaks) == 0 {
+		return Change{}, false
+	}
+	change := Change{ID: advice.ID, Title: advice.Title, Risk: RiskMedium}
+	for _, leak := range leaks {
+		if leak.Global() {
+			const dropin = "/etc/systemd/resolved.conf.d/99-nabiz-no-fallback.conf"
+			change.Apply = append(change.Apply,
+				"mkdir -p /etc/systemd/resolved.conf.d",
+				"printf '[Resolve]\\nFallbackDNS=\\n' > "+dropin,
+				"systemctl restart systemd-resolved")
+			change.Restore = append(change.Restore,
+				"rm -f "+dropin, "systemctl restart systemd-resolved")
+			continue
+		}
+		connection := nmConnection(leak.Link)
+		if connection == "" {
+			continue // not NetworkManager's to change; leave it to the operator
+		}
+		change.Apply = append(change.Apply,
+			fmt.Sprintf("nmcli connection modify %q ipv4.ignore-auto-dns yes ipv6.ignore-auto-dns yes",
+				connection),
+			fmt.Sprintf("nmcli device reapply %q", leak.Link))
+		change.Restore = append(change.Restore,
+			fmt.Sprintf("nmcli connection modify %q ipv4.ignore-auto-dns no ipv6.ignore-auto-dns no",
+				connection),
+			fmt.Sprintf("nmcli device reapply %q", leak.Link))
+	}
+	if len(change.Apply) == 0 {
+		return Change{}, false
+	}
+	return change, true
+}
+
+// nmConnection is the NetworkManager profile currently active on a device.
+func nmConnection(iface string) string {
+	if util.Which("nmcli") == "" {
+		return ""
+	}
+	out, ok := util.Run(5*time.Second, "nmcli", "-g", "GENERAL.CONNECTION",
+		"device", "show", iface)
+	if !ok {
+		return ""
+	}
+	name := strings.TrimSpace(out)
+	if name == "" || name == "--" {
+		return ""
+	}
+	return name
 }
 
 // deadEntries mirrors the advice engine's view of names that no longer resolve.

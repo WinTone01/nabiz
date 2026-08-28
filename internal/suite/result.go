@@ -36,6 +36,7 @@ type Env struct {
 	Bpftune     sysinfo.BpftuneState        `json:"bpftune"`
 	SystemDNS   []string                    `json:"system_dns"`
 	UpstreamDNS []string                    `json:"upstream_dns"`
+	DNSPaths    []probe.ResolverPath        `json:"dns_paths,omitempty"`
 	Sockets     probe.SocketSummary         `json:"sockets"`
 }
 

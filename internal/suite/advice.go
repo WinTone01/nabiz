@@ -391,7 +391,11 @@ func GenerateAdvice(result Result, cfg config.Config) []Advice {
 			Gain: t("adv.conntrack.gain"),
 		})
 	}
-	if health.RetransPct > 2 && gateway != nil && gateway.LossPct < 0.5 && !link.Wireless {
+	// Gated on what ethtool reports right now. The retransmission rate is
+	// cumulative since boot and never falls, so judging by that alone left this
+	// recommendation standing for the rest of the uptime after it was applied.
+	if health.RetransPct > 2 && gateway != nil && gateway.LossPct < 0.5 &&
+		!link.Wireless && link.Offloads.AnyOn() {
 		out.push(Advice{
 			ID: "nic-offload", Priority: 4, Category: catKernel,
 			Title: t("adv.nic-offload.title"), Why: t("adv.nic-offload.why", health.RetransPct),
@@ -492,20 +496,35 @@ func GenerateAdvice(result Result, cfg config.Config) []Advice {
 
 	// --- 6. DNS -----------------------------------------------------------------------
 	unwall := result.Env.Unwall
-	var plaintext []string
-	for _, server := range result.Env.UpstreamDNS {
-		if !strings.HasPrefix(server, "127.") && !strings.HasPrefix(server, "::1") {
-			plaintext = append(plaintext, server)
+	leaks := probe.PlaintextLeaks(result.Env.DNSPaths)
+	if unwall.DNSEncrypted && len(leaks) > 0 {
+		// The steps have to name the scope that is actually leaking. Telling
+		// someone to clear the global fallback when the addresses came from a
+		// DHCP lease on one interface is advice that cannot work, however many
+		// times it is followed.
+		var described []string
+		steps := []string{}
+		for _, leak := range leaks {
+			if leak.Global() {
+				described = append(described, i18n.T("dns.scope.global")+": "+
+					strings.Join(leak.Servers, ", "))
+				steps = append(steps, "sudo systemctl edit systemd-resolved",
+					t("adv.dns-leak.s1"))
+				continue
+			}
+			described = append(described, leak.Link+": "+strings.Join(leak.Servers, ", "))
+			steps = append(steps,
+				t("adv.dns-leak.s3", leak.Link),
+				fmt.Sprintf("sudo nmcli connection modify \"$(nmcli -g GENERAL.CONNECTION device show %s)\" ipv4.ignore-auto-dns yes ipv6.ignore-auto-dns yes", leak.Link),
+				fmt.Sprintf("sudo nmcli device reapply %s", leak.Link))
 		}
-	}
-	if unwall.DNSEncrypted && len(plaintext) > 0 {
+		steps = append(steps, "nabiz dns")
 		out.push(Advice{
 			ID: "dns-leak", Priority: 2, Category: catDNS,
 			Title: t("adv.dns-leak.title"),
-			Why:   t("adv.dns-leak.why", strings.Join(plaintext, ", ")),
-			How: []string{"sudo systemctl edit systemd-resolved", t("adv.dns-leak.s1"),
-				"sudo systemctl restart systemd-resolved", t("adv.dns-leak.s2")},
-			Gain: t("adv.dns-leak.gain"),
+			Why:   t("adv.dns-leak.why", strings.Join(described, " · ")),
+			How:   steps,
+			Gain:  t("adv.dns-leak.gain"),
 		})
 	}
 	if !unwall.DNSEncrypted {

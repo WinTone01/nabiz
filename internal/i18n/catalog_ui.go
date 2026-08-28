@@ -315,3 +315,10 @@ func init() {
 		"apply.select_all": {"Select all", "Tümünü seç"},
 	})
 }
+
+// Resolver scopes.
+func init() {
+	register(map[string][2]string{
+		"dns.scope.global": {"global", "genel"},
+	})
+}

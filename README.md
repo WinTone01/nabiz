@@ -141,10 +141,17 @@ nabiz rollback
 ```
 
 After a batch is applied the machine is re-read and the list is derived again,
-so anything that is now in place drops off it. A recommendation that will not
-go away is telling you something did not take — `bpftune` raising `tcp_rmem`
-back up, for instance, which is why there is a separate recommendation to stop
-that tuner rather than keep fighting it.
+so anything that is now in place drops off it. Recommendations are judged
+against what is true right now rather than against a counter: the offload advice
+asks `ethtool` what is enabled instead of reading a retransmission total that
+only ever grows, and the resolver-leak advice names the scope that leaks —
+`systemd-resolved` keeps a list per link as well as globally, and clearing the
+global fallback does nothing about the addresses a DHCP lease put on one
+interface. A loopback stub and a MagicDNS address are not leaks.
+
+A recommendation that will not go away is telling you something did not take —
+`bpftune` raising `tcp_rmem` back up, for instance, which is why there is a
+separate recommendation to stop that tuner rather than keep fighting it.
 
 ## Telling block types apart
 

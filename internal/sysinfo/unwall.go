@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/WinTone01/nabiz/internal/i18n"
+	"github.com/WinTone01/nabiz/internal/probe"
 	"github.com/WinTone01/nabiz/internal/util"
 )
 
@@ -186,26 +187,32 @@ func AssessUnwall(state UnwallState, nfqDrops int64, nfqReadable bool) []Note {
 	return notes
 }
 
-// UnwallDNSLeak reports plaintext resolvers still configured while encrypted
-// DNS is on - systemd-resolved will happily fall back to them.
-func UnwallDNSLeak(state UnwallState, upstream []string) *Note {
+// UnwallDNSLeak reports the scopes still offering a plaintext resolver.
+//
+// It is not enough to know that one exists: systemd-resolved keeps a resolver
+// list per link as well as globally, and clearing the global fallback does
+// nothing about the two addresses a DHCP lease put on the ethernet interface.
+// Naming the scope is what makes the finding fixable. Loopback stubs and
+// MagicDNS addresses are excluded - they are the encrypted proxy itself and a
+// resolver reachable only over an encrypted tunnel.
+func UnwallDNSLeak(state UnwallState, paths []probe.ResolverPath) *Note {
 	if !state.DNSEncrypted {
 		return nil
 	}
-	var plaintext []string
-	for _, server := range upstream {
-		if !strings.HasPrefix(server, "127.") && !strings.HasPrefix(server, "::1") {
-			plaintext = append(plaintext, server)
-		}
-	}
-	if len(plaintext) == 0 {
+	leaks := probe.PlaintextLeaks(paths)
+	if len(leaks) == 0 {
 		return nil
 	}
-	if len(plaintext) > 3 {
-		plaintext = plaintext[:3]
+	var described []string
+	for _, leak := range leaks {
+		scope := leak.Link
+		if scope == "" {
+			scope = i18n.T("dns.scope.global")
+		}
+		described = append(described, scope+": "+strings.Join(leak.Servers, ", "))
 	}
 	return &Note{Level: "warn", Key: "dns-leak", Source: "unwall",
-		Text: i18n.T("fnd.dns-leak.title", strings.Join(plaintext, ", ")),
+		Text: i18n.T("fnd.dns-leak.title", strings.Join(described, " · ")),
 		Hint: i18n.T("fnd.dns-leak.hint")}
 }
 
