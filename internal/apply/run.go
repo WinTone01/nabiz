@@ -142,6 +142,11 @@ func Apply(ctx context.Context, snapshot *Snapshot, verify bool) Result {
 	for _, change := range snapshot.Changes {
 		result.Applied = append(result.Applied, change.ID)
 	}
+	// mark the snapshot as actually applied. A dry run leaves the scripts on
+	// disk without this marker, and rolling back something that was never
+	// applied is a confusing no-op at best.
+	_ = os.WriteFile(filepath.Join(snapshot.Dir, "applied"),
+		[]byte(time.Now().Format(time.RFC3339)+"\n"), 0o644)
 	if !verify {
 		result.Verified = true
 		return result
@@ -207,6 +212,9 @@ func List() ([]Snapshot, error) {
 		var snapshot Snapshot
 		if err := json.Unmarshal(data, &snapshot); err != nil {
 			continue
+		}
+		if _, err := os.Stat(filepath.Join(dir, "applied")); err != nil {
+			continue // prepared but never applied
 		}
 		snapshot.Dir = dir
 		out = append(out, snapshot)
