@@ -273,7 +273,7 @@ func ChangesInForce() map[string]bool {
 		}
 		var manifest struct {
 			Changes []struct {
-				ID string `json:"ID"`
+				ID string `json:"id"`
 			} `json:"changes"`
 		}
 		if json.Unmarshal(data, &manifest) != nil {
