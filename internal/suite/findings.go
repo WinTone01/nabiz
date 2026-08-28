@@ -27,6 +27,22 @@ func Finalize(result *Result, cfg config.Config) {
 // language switch needs.
 func Refresh(result *Result, cfg config.Config) { Finalize(result, cfg) }
 
+// RefreshEnv re-reads the machine and re-derives, keeping the measurements.
+//
+// Applying a recommendation changes the environment, never the packets that
+// were already sent: the latency, DPI and load figures stay valid while the
+// sysctls, service states and hostlists they were judged against do not. Without
+// this, advice is derived from a stored snapshot and an applied change never
+// leaves the list, however many times it is applied.
+func RefreshEnv(result *Result, cfg config.Config) {
+	measured := result.Env
+	result.Env = SnapshotEnv(cfg)
+	// the counters below describe the run, not the machine, so they are carried
+	// forward rather than replaced with the current totals
+	result.Env.TCPHealth = measured.TCPHealth
+	Finalize(result, cfg)
+}
+
 type findingList struct {
 	items []Finding
 }

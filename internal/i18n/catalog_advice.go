@@ -322,3 +322,51 @@ func init() {
 		"adv.monitor-long.gain":  {"Patterns like 'every evening at nine' become visible", "'Her akşam dokuzda' gibi desenler görünür hâle gelir"},
 	})
 }
+
+// Advice derived from an A/B comparison rather than a single run.
+func init() {
+	register(map[string][2]string{
+		"adv.hostlist-fp.title": {"Remove %d hostlist entries that do not need the bypass", "Bypass'a ihtiyaç duymayan %d hostlist girdisini kaldır"},
+		"adv.hostlist-fp.why": {
+			"With the engine stopped, %s and %d others opened cleanly on their own. They are in the hostlist anyway, so every connection to them is processed by the desync engine for nothing — CPU, latency and a chance of breaking a site that was never blocked.",
+			"Motor durdurulmuşken %s ve %d tanesi kendi başına sorunsuz açıldı. Yine de hostlist'te oldukları için onlara giden her bağlantı boşuna desync'ten geçiyor — CPU, gecikme ve hiç engelli olmayan bir siteyi bozma riski."},
+		"adv.hostlist-fp.s1":   {"Removes exactly those names from hostlist.txt and autohostlist.txt, nothing else", "Yalnızca o adları hostlist.txt ve autohostlist.txt içinden siler, başka bir şeye dokunmaz"},
+		"adv.hostlist-fp.s2":   {"If one turns out to be blocked later, the auto list learns it again", "Sonradan biri engellenirse otomatik liste onu tekrar öğrenir"},
+		"adv.hostlist-fp.gain": {"Less traffic through the engine, lower latency, fewer side effects", "Motordan geçen trafik azalır, gecikme düşer, yan etki azalır"},
+	})
+}
+
+// Advice added in 0.3.2.
+func init() {
+	register(map[string][2]string{
+		"adv.hostlist-dead.title": {"Drop %d hostlist entries that no longer resolve", "Artık çözümlenmeyen %d hostlist girdisini at"},
+		"adv.hostlist-dead.why": {
+			"%s and the rest did not resolve at all. A name that no longer exists cannot be blocked, so its only remaining effect is a lookup on every match and a longer list to walk.",
+			"%s ve diğerleri hiç çözümlenemedi. Var olmayan bir ad engellenemez; geriye kalan tek etkisi her eşleşmede bir sorgu ve gezilecek daha uzun bir listedir."},
+		"adv.hostlist-dead.s1":   {"Removes exactly those names, nothing else", "Yalnızca o adları siler, başka bir şeye dokunmaz"},
+		"adv.hostlist-dead.gain": {"A shorter list and one less lookup per match", "Daha kısa liste, eşleşme başına bir sorgu daha az"},
+
+		"adv.unwall-verify.title": {"Check whether the bypass is still doing anything", "Bypass'ın hâlâ bir işe yarayıp yaramadığını ölç"},
+		"adv.unwall-verify.why": {
+			"All %d probed domains opened cleanly with the engine running, which proves it is not breaking anything — but not that it is needed. Only a run with the engine stopped can tell those apart.",
+			"Motor çalışırken denenen %d alan adının hepsi sorunsuz açıldı; bu, motorun bir şeyi bozmadığını kanıtlar ama gerekli olduğunu kanıtlamaz. Bunları ancak motor durdurulmuş bir koşu ayırt edebilir."},
+		"adv.unwall-verify.s1":   {"Anything still clean without it does not need to be in the hostlist", "Onsuz da temiz kalan her şeyin hostlist'te işi yoktur"},
+		"adv.unwall-verify.gain": {"Either a shorter hostlist, or evidence that the engine is earning its place", "Ya daha kısa bir hostlist ya da motorun yerini hak ettiğine dair kanıt"},
+
+		"adv.nfqueue-qlen.title": {"Give the desync queue more room", "Desync kuyruğuna daha fazla alan ver"},
+		"adv.nfqueue-qlen.why": {
+			"%d packets were dropped in the NFQUEUE. The engine is not keeping up with the traffic being handed to it, and a dropped packet there looks exactly like packet loss from the ISP.",
+			"NFQUEUE'da %d paket düştü. Motor kendisine verilen trafiğe yetişemiyor ve orada düşen bir paket, ISS kaynaklı kayıptan ayırt edilemez."},
+		"adv.nfqueue-qlen.s1":   {"Then narrow what reaches the queue at all: hostlist and ports", "Sonra kuyruğa ulaşanı daralt: hostlist ve portlar"},
+		"adv.nfqueue-qlen.s2":   {"Turning gateway mode off removes every other device's traffic from it", "Ağ geçidi modunu kapatmak diğer cihazların trafiğini kuyruktan tamamen çıkarır"},
+		"adv.nfqueue-qlen.gain": {"The random outages that look like an ISP fault stop", "ISS arızası gibi görünen rastgele kopmalar biter"},
+
+		"adv.bpftune-tuner-off.title": {"Stop the buffer tuner rather than fighting it", "Tampon ayarlayıcısıyla çekişmek yerine onu durdur"},
+		"adv.bpftune-tuner-off.why": {
+			"bpftune has raised tcp_rmem %d times, currently to %s. Pinning the value works until its next restart, at which point it starts climbing again. Running only the tuners you want settles it.",
+			"bpftune tcp_rmem'i %d kez yükseltti, şu an %s. Değeri sabitlemek bir sonraki yeniden başlatmaya kadar işe yarar, sonra tekrar tırmanmaya başlar. Yalnızca istediğin ayarlayıcıları çalıştırmak bunu bitirir."},
+		"adv.bpftune-tuner-off.s1":   {"Keep the congestion-control tuner, drop the buffer one:", "Tıkanıklık kontrolü ayarlayıcısını tut, tampon olanı bırak:"},
+		"adv.bpftune-tuner-off.s2":   {"Set ExecStart to: /usr/sbin/bpftune -a tcp_conn_tuner", "ExecStart satırını şu yap: /usr/sbin/bpftune -a tcp_conn_tuner"},
+		"adv.bpftune-tuner-off.gain": {"The buffer stays where you put it", "Tampon koyduğun yerde kalır"},
+	})
+}

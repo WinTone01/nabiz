@@ -102,3 +102,25 @@ func ScoreSeries(history []RunSummary) []float64 {
 	}
 	return out
 }
+
+// LatestRun returns the newest saved run that actually parses.
+//
+// The runs directory accumulates files across versions, and one written by an
+// older format should cost the caller a skip, not an error. Taking ListRuns()[0]
+// blindly meant a single stale file could break every command that starts from
+// "the last run".
+func LatestRun() (suite.Result, string, error) {
+	var lastErr error
+	for _, path := range ListRuns(30) {
+		result, err := LoadJSON(path)
+		if err != nil {
+			lastErr = err
+			continue
+		}
+		return result, path, nil
+	}
+	if lastErr != nil {
+		return suite.Result{}, "", lastErr
+	}
+	return suite.Result{}, "", os.ErrNotExist
+}

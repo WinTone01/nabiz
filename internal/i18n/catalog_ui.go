@@ -300,3 +300,11 @@ func init() {
 			"pkexec bulunamadı. Tam ekran arayüzden çalıştırmak grafik şifre istemi gerektirir; bunun yerine terminalde `nabiz apply` kullan."},
 	})
 }
+
+// Post-apply reporting.
+func init() {
+	register(map[string][2]string{
+		"apply.remaining": {"%d changes still applicable", "%d değişiklik hâlâ uygulanabilir"},
+		"apply.recheck":   {"re-reading the machine…", "makine yeniden okunuyor…"},
+	})
+}

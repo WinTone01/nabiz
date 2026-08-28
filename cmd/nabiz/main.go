@@ -823,19 +823,19 @@ func cmdAdvice(args []string) error {
 		return err
 	}
 	target := *path
+	var result suite.Result
+	var err error
 	if target == "" {
-		runs := report.ListRuns(1)
-		if len(runs) == 0 {
-			return errors.New(i18n.T("misc.no_runs"))
-		}
-		target = runs[0]
+		result, target, err = report.LatestRun()
+	} else {
+		result, err = report.LoadJSON(target)
 	}
-	result, err := report.LoadJSON(target)
 	if err != nil {
 		return err
 	}
-	// the saved text may be in the other language; re-derive it
-	suite.Refresh(&result, config.Load())
+	// re-read the machine as well as the language: advice that has already been
+	// acted on should not still be listed
+	suite.RefreshEnv(&result, config.Load())
 	fmt.Println(sTitle.Render(i18n.T("sec.advice") + " — " + filepath.Base(target)))
 	fmt.Println(sDim.Render(fmt.Sprintf("%.1f (%s) · %s", result.Score, result.Grade,
 		result.StartedAt.Format("2006-01-02 15:04"))))
@@ -965,15 +965,13 @@ func cmdApply(args []string) error {
 		return err
 	}
 
-	runs := report.ListRuns(1)
-	if len(runs) == 0 {
+	result, _, err := report.LatestRun()
+	if err != nil {
 		return errors.New(i18n.T("misc.no_runs"))
 	}
-	result, err := report.LoadJSON(runs[0])
-	if err != nil {
-		return err
-	}
-	suite.Refresh(&result, config.Load())
+	// the run may be hours old and the machine may have moved on; offering a
+	// change that is already in place is the whole complaint this fixes
+	suite.RefreshEnv(&result, config.Load())
 
 	available := apply.Available(result)
 	if len(available) == 0 {
@@ -1060,6 +1058,21 @@ func cmdApply(args []string) error {
 		return outcome.Err
 	default:
 		fmt.Println(sOK.Render(i18n.T("apply.ok")))
+		// re-read the machine into the stored run, otherwise the next
+		// `nabiz apply --list` still offers what was just applied
+		suite.RefreshEnv(&result, config.Load())
+		if _, err := report.Autosave(result); err == nil {
+			remaining := apply.Available(result)
+			fmt.Println()
+			if len(remaining) == 0 {
+				fmt.Println(sDim.Render(i18n.T("apply.listempty")))
+			} else {
+				fmt.Println(sDim.Render(i18n.T("apply.remaining", len(remaining))))
+				for _, change := range remaining {
+					fmt.Printf("  %s  %s\n", sAcc.Render(change.ID), change.Title)
+				}
+			}
+		}
 	}
 	fmt.Println(sDim.Render(i18n.T("apply.restorehint", restoreScript)))
 	return nil

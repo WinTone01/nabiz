@@ -157,6 +157,8 @@ func Available(result suite.Result) []Change {
 		}
 	}
 
+	extraChanges(result, iface, sysctls, byID)
+
 	out := make([]Change, 0, len(byID))
 	for _, change := range byID {
 		if len(change.Apply) > 0 {
@@ -238,4 +240,175 @@ func Select(changes []Change, ids []string) ([]Change, error) {
 		return nil, fmt.Errorf("%s: %s", i18n.T("apply.unknown"), strings.Join(missing, ", "))
 	}
 	return out, nil
+}
+
+// extraChanges covers the recommendations added after the first pass. They live
+// here rather than in the switch above only to keep that function readable.
+func extraChanges(result suite.Result, iface string, sysctls map[string]string,
+	byID map[string]Change,
+) {
+	add := func(change Change) {
+		if len(change.Apply) > 0 {
+			byID[change.ID] = change
+		}
+	}
+	for _, advice := range result.Advice {
+		switch advice.ID {
+		case "hostlist-false-positives":
+			if len(result.DesyncNotNeeded) == 0 {
+				continue
+			}
+			const manual = "/etc/unwall/hostlist.txt"
+			const auto = "/etc/unwall/autohostlist.txt"
+			var commands []string
+			for _, domain := range result.DesyncNotNeeded {
+				// anchored to a whole line so example.com never takes
+				// notexample.com with it
+				pattern := "^" + regexpEscape(domain) + "$"
+				commands = append(commands,
+					fmt.Sprintf("sed -i -E '/%s/d' %s", pattern, manual),
+					fmt.Sprintf("sed -i -E '/%s/d' %s", pattern, auto))
+			}
+			commands = append(commands, "systemctl restart unwall")
+			add(Change{
+				ID: advice.ID, Title: advice.Title, Risk: RiskMedium,
+				Files:   []string{manual, auto},
+				Apply:   commands,
+				Restore: []string{"systemctl restart unwall"},
+			})
+
+		case "hostlist-dead":
+			dead := deadEntries(result)
+			if len(dead) == 0 {
+				continue
+			}
+			const manual = "/etc/unwall/hostlist.txt"
+			const auto = "/etc/unwall/autohostlist.txt"
+			var commands []string
+			for _, domain := range dead {
+				pattern := "^" + regexpEscape(domain) + "$"
+				commands = append(commands,
+					fmt.Sprintf("sed -i -E '/%s/d' %s", pattern, manual),
+					fmt.Sprintf("sed -i -E '/%s/d' %s", pattern, auto))
+			}
+			commands = append(commands, "systemctl restart unwall")
+			add(Change{
+				ID: advice.ID, Title: advice.Title, Risk: RiskLow,
+				Files:   []string{manual, auto},
+				Apply:   commands,
+				Restore: []string{"systemctl restart unwall"},
+			})
+
+		case "hostlist-manual":
+			add(Change{
+				ID: advice.ID, Title: advice.Title, Risk: RiskMedium,
+				Files:   []string{"/etc/unwall/unwall.conf"},
+				Apply:   []string{"unwallctl config set HOSTLIST_MODE=manual", "systemctl restart unwall"},
+				Restore: []string{"unwallctl config set HOSTLIST_MODE=auto", "systemctl restart unwall"},
+			})
+
+		case "quic":
+			previous := result.Env.Unwall.PortsUDP
+			if previous == "" {
+				continue
+			}
+			add(Change{
+				ID: advice.ID, Title: advice.Title, Risk: RiskMedium,
+				Files: []string{"/etc/unwall/unwall.conf"},
+				Apply: []string{"unwallctl config set PORTS_UDP=50000-50100",
+					"systemctl restart unwall"},
+				Restore: []string{"unwallctl config set PORTS_UDP=" + previous,
+					"systemctl restart unwall"},
+			})
+
+		case "dns-encrypt":
+			add(Change{
+				ID: advice.ID, Title: advice.Title, Risk: RiskMedium,
+				Apply:   []string{"unwallctl dns enable quad9 dnscrypt"},
+				Restore: []string{"unwallctl dns disable"},
+			})
+
+		case "ipv6-broken":
+			add(Change{
+				ID: advice.ID, Title: advice.Title, Risk: RiskLow,
+				Apply:   []string{"sysctl -w net.ipv6.conf.all.disable_ipv6=1"},
+				Restore: []string{"sysctl -w net.ipv6.conf.all.disable_ipv6=0"},
+			})
+
+		case "sqm":
+			rate := shapeRate(result)
+			if rate <= 0 || iface == "" {
+				continue
+			}
+			add(Change{
+				ID: advice.ID, Title: advice.Title, Risk: RiskMedium,
+				Apply: []string{fmt.Sprintf(
+					"tc qdisc replace dev %s root cake bandwidth %dmbit besteffort", iface, rate)},
+				Restore: []string{fmt.Sprintf(
+					"tc qdisc replace dev %s root %s", iface, restoreQdisc(sysctls))},
+			})
+
+		case "cake-gaming":
+			rate := shapeRate(result)
+			if rate <= 0 || iface == "" {
+				continue
+			}
+			add(Change{
+				ID: advice.ID, Title: advice.Title, Risk: RiskMedium,
+				Apply: []string{fmt.Sprintf(
+					"tc qdisc replace dev %s root cake bandwidth %dmbit diffserv4", iface, rate)},
+				Restore: []string{fmt.Sprintf(
+					"tc qdisc replace dev %s root %s", iface, restoreQdisc(sysctls))},
+			})
+
+		case "pin-100full":
+			if iface == "" {
+				continue
+			}
+			add(Change{
+				ID: advice.ID, Title: advice.Title, Risk: RiskLink,
+				Apply:   []string{"ethtool -s " + iface + " autoneg on advertise 0x008"},
+				Restore: []string{"ethtool -s " + iface + " autoneg on advertise 0x03f"},
+			})
+		}
+	}
+}
+
+// deadEntries mirrors the advice engine's view of names that no longer resolve.
+func deadEntries(result suite.Result) []string {
+	var out []string
+	for _, verdict := range result.DPI {
+		if verdict.Verdict == "dns-fail" {
+			out = append(out, strings.ToLower(verdict.Domain))
+		}
+	}
+	return out
+}
+
+// shapeRate is the upload rate to shape at: a little under what was measured,
+// because a shaper only controls the queue while it stays the bottleneck.
+func shapeRate(result suite.Result) int {
+	if result.Load == nil || result.Load.Upload == nil {
+		return 0
+	}
+	rate := int(result.Load.Upload.Bps / 1e6 * 0.92)
+	if rate < 1 {
+		return 0
+	}
+	return rate
+}
+
+func restoreQdisc(sysctls map[string]string) string {
+	if value := sysctls["net.core.default_qdisc"]; value != "" {
+		return value
+	}
+	return "fq_codel"
+}
+
+// regexpEscape quotes the characters that matter inside a sed address.
+func regexpEscape(value string) string {
+	replacer := strings.NewReplacer(".", `\.`, "*", `\*`, "[", `\[`, "]", `\]`,
+		"^", `\^`, "$", `\$`, "/", `\/`, "+", `\+`, "?", `\?`, "(", `\(`, ")", `\)`,
+		"{", `\{`, "}", `\}`, "|", `\|`)
+	return replacer.Replace(value)
 }

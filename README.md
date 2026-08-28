@@ -27,32 +27,42 @@ things that quietly rewrite your networking behind your back:
 
 ## The interface
 
-A real application in the terminal: clickable tabs, buttons, checkboxes and
-dialogs — with every action also on a key.
+A real application in the terminal: a grouped sidebar, clickable buttons,
+checkboxes and dialogs, a command palette on `ctrl+k` — and every action also on
+a key. It adapts: the sidebar becomes a strip of shortcuts on a narrow terminal,
+and the two-column pages fold into one.
 
 ```
-  Nabız  0.3.1                          enp3s0 · 6.18.42-lts · unwall ● · bpftune ● · EN
-╭───────────────────────────────────────────────────────────────────────────────────────╮
-│ 1 Overview  2 Test  3 Layers  4 Kernel  5 bpftune  6 Unwall  7 DNS  8 Monitor  9 Advice│
-│───────────────────────────────────────────────────────────────────────────────────────│
-│╭─────╮ ╭──────╮ ╭────────╮ ╭──────────────╮ ╭────╮ ╭──────╮ ╭──────╮                  │
-││ run │ │ stop │ │ export │ │ set baseline │ │ EN │ │ help │ │ quit │                  │
-│╰─────╯ ╰──────╯ ╰────────╯ ╰──────────────╯ ╰────╯ ╰──────╯ ╰──────╯                  │
-│                                                                                       │
-│╭────────────────────────────╮ ╭──────────────────────────────────────────────────────╮│
-││ Link                       │ │ Live latency                                         ││
-││ interface   enp3s0         │ │ target            last   avg   p95   loss            ││
-││ speed/mtu   100 Mbit·1500  │ │ Modem / Gateway      1     1     1   0.0% ▅▁█▄▃▅▁    ││
-││ link drops  0              │ │ Cloudflare          25    24    25   0.0% ▄▃▇▃▆▅▄    ││
-│╰────────────────────────────╯ ╰──────────────────────────────────────────────────────╯│
-│╭────────────────────────────╮ ╭──────────────────────────────────────────────────────╮│
-││ Kernel / TCP               │ │ Verdict                                              ││
-││ retransmit  2.99%          │ │ Score 72.9 / 100  (B)   full · 106 s                 ││
-││ sockets     30 · cwnd 26   │ │  ● link dropped 39 times                             ││
-│╰────────────────────────────╯ ╰──────────────────────────────────────────────────────╯│
-╰───────────────────────────────────────────────────────────────────────────────────────╯
- r run • s stop • e export • l language • ? help • q quit               score 72.9 (B)
+  NABIZ  0.3.1  │  Overview                   enp3s0 100M · 6.18.42-lts · ● unwall · ● bpftune · EN
+──────────────────────────────────────────────────────────────────────────────────────────────────
+ LIVE                │  run   stop   export   set baseline
+▎ 1 Overview         │ ╭────────────────╮ ╭────────────────╮ ╭────────────────╮ ╭────────────────╮
+  2 Monitor          │ │ AVAILABILITY   │ │ INTERNET       │ │ LINK           │ │ SCORE          │
+                     │ │ 99.982 %       │ │ 24 ms          │ │ 100 Mbit       │ │ 72.9  B        │
+ MEASURE             │ │ 4h · outages 2 │ │ p95 31 · 0.0%  │ │ enp3s0 · 0 dr… │ │ full · 21:14   │
+  3 Test          2  │ ╰────────────────╯ ╰────────────────╯ ╰────────────────╯ ╰────────────────╯
+  4 Layers           │ ╭─ Link ───────────────────╮ ╭─ Live latency ─────────────────────────────╮
+  5 DNS              │ │ interface  enp3s0        │ │ target            last  avg  p95   loss    │
+                     │ │ speed/mtu  100 Mbit·1500 │ │ ╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌ │
+ SYSTEM              │ │ link drops 0             │ │ Modem / Gateway      1    1    1   0.0% ▅▁█ │
+  6 Kernel           │ ╰──────────────────────────╯ │ Cloudflare          25   24   25   0.0% ▄▃▇ │
+  7 bpftune          │ ╭─ Kernel / TCP ───────────╮ ╰────────────────────────────────────────────╯
+  8 Unwall           │ │ retransmit 2.99%         │ ╭─ Verdict ──────────────────────────────────╮
+                     │ │ sockets    30 · cwnd 26  │ │ Score 72.9 / 100  (B)   full · 106 s       │
+ RESULTS             │ ╰──────────────────────────╯ │ ● link dropped 39 times                    │
+  9 Advice        6  │                              │ → Roll the kernel back to 6.18.42-lts      │
+  0 History          │                              ╰────────────────────────────────────────────╯
+  p Reports          │
+  H Help             │
+──────────────────────────────────────────────────────────────────────────────────────────────────
+ last run full · 21:14  ·  ● 1  ·  ▲ 4  ·  → Roll the kernel back to 6.18.42-lts
+ r run • tab focus • ctrl+k commands • e export • ? help • q quit           score 72.9  B   ▲+2.4
 ```
+
+The badge next to a sidebar entry is a count you have not dealt with yet: bad
+findings on **Test**, outages on **Monitor**, pending recommendations on
+**Advice**. `ctrl+k` opens every command by name in the current language, so
+nothing is reachable only by remembering a key.
 
 | Screen | What it shows |
 |---|---|
@@ -109,6 +119,12 @@ want in the **Advice** screen, press Apply, and confirm:
 ╰──────────────────────────────────────────────────────────────────╯
 ```
 
+**21 of the recommendations carry a script**, so ticking them is enough:
+congestion control, MTU probing, slow-start, notsent-lowat, conntrack sizing,
+the default qdisc, cake shaping, NIC offloads, EEE, link advertisement, the
+bpftune buffer ceiling, IPv6, encrypted DNS, the resolver fallback leak, gateway
+mode, QUIC ports, hostlist mode, and four kinds of hostlist pruning.
+
 The same flow exists on the command line:
 
 ```bash
@@ -117,6 +133,12 @@ nabiz apply --dry-run --safe
 nabiz apply --safe
 nabiz rollback
 ```
+
+After a batch is applied the machine is re-read and the list is derived again,
+so anything that is now in place drops off it. A recommendation that will not
+go away is telling you something did not take — `bpftune` raising `tcp_rmem`
+back up, for instance, which is why there is a separate recommendation to stop
+that tuner rather than keep fighting it.
 
 ## Telling block types apart
 
@@ -182,7 +204,8 @@ nabiz --lang tr
 nabiz --lang en
 ```
 
-`l` — or the language button — switches language instantly **and remembers the choice**.
+`F2` — or the language code in the title bar — switches language instantly **and
+remembers the choice**.
 Findings and advice are re-derived, not re-measured: the numbers stay, only the
 wording changes. A test asserts that every catalog key exists in both languages and
 that their format placeholders match, so a language switch can never crash a render.
@@ -193,9 +216,15 @@ Every recommendation is tied to a number this run measured, and the ordering shi
 with the evidence — a proven kernel regression outranks the cable, and a cable fault
 outranks every kernel tunable.
 
-Categories: `physical` `queue` `kernel` `bpftune` `dns` `dpi` `isp` `security`
+54 rules across `physical` `queue` `kernel` `bpftune` `dns` `dpi` `isp` `security`
 `application` `method`. Each item carries **why** (with the measured number), **how**
 (runnable commands), **expected gain**, **risk** and **how to revert**.
+
+Some only exist because of the A/B comparison. Stopping the bypass engine and
+re-scanning is the only way to tell a hostlist entry that needs desync from one
+that was added on a bad day — so after `nabiz ab --target unwall`, the domains
+that opened cleanly on their own become a recommendation to remove exactly those
+lines, and nothing else.
 
 ```
  [x] [low] [kernel] Try the bbr congestion control on a lossy link

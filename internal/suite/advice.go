@@ -8,6 +8,7 @@ import (
 	"github.com/WinTone01/nabiz/internal/i18n"
 	"github.com/WinTone01/nabiz/internal/probe"
 	"github.com/WinTone01/nabiz/internal/sysinfo"
+	"github.com/WinTone01/nabiz/internal/util"
 )
 
 // The advice engine. Every recommendation must be traceable to a number this
@@ -431,6 +432,23 @@ func GenerateAdvice(result Result, cfg config.Config) []Advice {
 				Revert: []string{"sudo systemctl restart bpftune"},
 			})
 		}
+		// One growth step is tuning; a dozen is a feedback loop with the loss on
+		// this line, and pinning the value only holds until the next restart.
+		if change, ok := bpftune.ChangedByBpftune("net.ipv4.tcp_rmem"); ok && change.Count >= 5 {
+			out.push(Advice{
+				ID: "bpftune-tuner-off", Priority: 3, Category: catBpftune,
+				Title: t("adv.bpftune-tuner-off.title"),
+				Why:   t("adv.bpftune-tuner-off.why", change.Count, change.To),
+				How: []string{
+					t("adv.bpftune-tuner-off.s1"),
+					"sudo systemctl edit bpftune.service",
+					t("adv.bpftune-tuner-off.s2"),
+					"nabiz ab --target bpftune",
+				},
+				Gain:   t("adv.bpftune-tuner-off.gain"),
+				Revert: []string{"sudo systemctl revert bpftune.service"},
+			})
+		}
 		if len(bpftune.CCVotes) > 1 {
 			var parts []string
 			for name, count := range bpftune.CCVotes {
@@ -564,6 +582,56 @@ func GenerateAdvice(result Result, cfg config.Config) []Advice {
 			Why:   t("adv.zapret-strategy.why", joinN(blocked, 3)),
 			How:   []string{"unwallctl blockcheck", t("adv.zapret-strategy.s1"), "nabiz dpi"},
 			Gain:  t("adv.zapret-strategy.gain"),
+		})
+	}
+	if len(result.DesyncNotNeeded) > 0 {
+		out.push(Advice{
+			ID: "hostlist-false-positives", Priority: 2, Category: catDPI,
+			Title: t("adv.hostlist-fp.title", len(result.DesyncNotNeeded)),
+			Why: t("adv.hostlist-fp.why", joinN(result.DesyncNotNeeded, 4),
+				len(result.DesyncNotNeeded)),
+			How: []string{
+				t("adv.hostlist-fp.s1"),
+				"nabiz apply hostlist-false-positives",
+				t("adv.hostlist-fp.s2"),
+			},
+			Gain:   t("adv.hostlist-fp.gain"),
+			Revert: []string{"nabiz rollback"},
+		})
+	}
+	// Entries that no longer resolve cost a lookup on every match and will never
+	// be blocked again; they are pure sediment in a list that only ever grows.
+	if dead := deadHostlistEntries(result); len(dead) > 0 {
+		out.push(Advice{
+			ID: "hostlist-dead", Priority: 4, Category: catDPI,
+			Title:  t("adv.hostlist-dead.title", len(dead)),
+			Why:    t("adv.hostlist-dead.why", joinN(dead, 4)),
+			How:    []string{t("adv.hostlist-dead.s1"), "nabiz apply hostlist-dead"},
+			Gain:   t("adv.hostlist-dead.gain"),
+			Revert: []string{"nabiz rollback"},
+		})
+	}
+	if unwall.Running && len(result.DPI) > 0 && len(result.DesyncNotNeeded) == 0 &&
+		len(splitHelps) == 0 && len(blocked) == 0 && unwall.HostlistN+unwall.AutoHostlistN > 0 {
+		out.push(Advice{
+			ID: "unwall-verify", Priority: 4, Category: catDPI,
+			Title: t("adv.unwall-verify.title"),
+			Why:   t("adv.unwall-verify.why", len(result.DPI)),
+			How:   []string{"nabiz ab --target unwall", t("adv.unwall-verify.s1")},
+			Gain:  t("adv.unwall-verify.gain"),
+		})
+	}
+	if nfqDropCount(result) > 0 {
+		out.push(Advice{
+			ID: "nfqueue-qlen", Priority: 2, Category: catDPI,
+			Title: t("adv.nfqueue-qlen.title"),
+			Why:   t("adv.nfqueue-qlen.why", nfqDropCount(result)),
+			How: []string{
+				"sudo sysctl -w net.core.rmem_max=8388608",
+				t("adv.nfqueue-qlen.s1"),
+				t("adv.nfqueue-qlen.s2"),
+			},
+			Gain: t("adv.nfqueue-qlen.gain"),
 		})
 	}
 	if unwall.AutoHostlistN > 300 {
@@ -709,6 +777,25 @@ func GenerateAdvice(result Result, cfg config.Config) []Advice {
 	return out.items
 }
 
+// deadHostlistEntries are hostlist names the DNS probe could not resolve.
+func deadHostlistEntries(result Result) []string {
+	var out []string
+	for _, verdict := range result.DPI {
+		if verdict.Verdict == "dns-fail" {
+			out = append(out, strings.ToLower(verdict.Domain))
+		}
+	}
+	return out
+}
+
+func nfqDropCount(result Result) int64 {
+	var drops int64
+	for _, queue := range result.Env.NFQueue.Queues {
+		drops += queue.QueueDropped + queue.UserDropped
+	}
+	return drops
+}
+
 func fastestResolver(rows []DNSRow) (string, float64) {
 	best, bestMs := "", -1.0
 	for _, row := range rows {
@@ -769,4 +856,41 @@ func maxInt(a, b int) int {
 		return a
 	}
 	return b
+}
+
+// DomainsWithoutDesync returns the hostlist domains that opened cleanly in a
+// run made with the bypass engine stopped.
+//
+// A hostlist grows by guessing: the engine adds a name the first time a
+// connection to it fails, and never revisits that guess. Comparing a scan taken
+// with the engine off against the list is the only evidence that separates a
+// name that needs desync from one that was added on a bad day.
+func DomainsWithoutDesync(withoutEngine Result) []string {
+	if withoutEngine.Env.Unwall.Running {
+		return nil // the engine was up, so this run proves nothing
+	}
+	listed := map[string]bool{}
+	for _, domain := range sysinfo.UnwallDomains(4096) {
+		listed[strings.ToLower(strings.TrimPrefix(domain, "."))] = true
+	}
+	if len(listed) == 0 {
+		return nil
+	}
+	var out []string
+	for _, verdict := range withoutEngine.DPI {
+		if verdict.Verdict != "clean" {
+			continue
+		}
+		name := strings.ToLower(verdict.Domain)
+		switch {
+		case listed[name]:
+			out = append(out, name)
+		default:
+			// hostlists hold registrable names while probes use hostnames
+			if trimmed := strings.TrimPrefix(name, "www."); listed[trimmed] {
+				out = append(out, trimmed)
+			}
+		}
+	}
+	return util.Uniq(out)
 }

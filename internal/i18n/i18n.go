@@ -104,12 +104,36 @@ func Toggle() Lang {
 	return TR
 }
 
+// Other is the language Toggle would switch to. The interface labels its own
+// language switch with the destination rather than the current setting, which
+// is the only reading of "Türkçe" that is not ambiguous.
+func Other() Lang {
+	if Current() == TR {
+		return EN
+	}
+	return TR
+}
+
 // Name is the language's own name, for the UI switcher.
 func Name(lang Lang) string {
 	if lang == TR {
 		return "Türkçe"
 	}
 	return "English"
+}
+
+// Upper uppercases text for the active language.
+//
+// strings.ToUpper is locale-independent, so it turns Turkish "i" into "I"
+// instead of "İ" - which makes "erişilebilirlik" render as "ERIŞILEBILIRLIK",
+// a word no Turkish reader would write. The interface uppercases its own
+// labels, so it has to do it correctly.
+func Upper(text string) string {
+	if Current() == TR {
+		replacer := strings.NewReplacer("i", "İ", "ı", "I")
+		text = replacer.Replace(text)
+	}
+	return strings.ToUpper(text)
 }
 
 // T renders a key in the active language, formatting args printf-style.

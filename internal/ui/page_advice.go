@@ -5,9 +5,7 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/bubbles/key"
-	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
 
 	"github.com/WinTone01/nabiz/internal/apply"
 	"github.com/WinTone01/nabiz/internal/i18n"
@@ -17,17 +15,19 @@ import (
 // Advice is grouped by priority because the order *is* the advice: fixing a
 // cable before tuning a buffer is not a preference.
 //
-// Items nabiz can perform itself carry a checkbox. Selecting them and pressing
-// Apply writes a snapshot, runs the batch under one privileged prompt, then
-// verifies the connection and rolls back on its own if it broke. Nothing here
-// is applied without the dialog, and nothing is applied without an undo script
+// Items nabiz can perform itself carry a checkbox. Ticking them and pressing
+// apply writes a snapshot, runs the batch under one privileged prompt, then
+// verifies the connection and rolls itself back if it broke. Nothing here is
+// applied without the dialog, and nothing is applied without an undo script
 // already on disk.
 type advicePage struct {
-	viewport      viewport.Model
+	body    scroller
+	keys    keyMap
+	rows    []adviceRow
+	cursor  int
+	focused bool
+
 	width, height int
-	keys          keyMap
-	rows          []adviceRow
-	cursor        int
 }
 
 type adviceRow struct {
@@ -36,22 +36,30 @@ type adviceRow struct {
 	selectable bool
 }
 
-func newAdvicePage() Page { return &advicePage{keys: defaultKeys()} }
+func newAdvicePage() Page { return &advicePage{body: newScroller(), keys: defaultKeys()} }
 
-func (p *advicePage) ID() tabID { return tabAdvice }
+func (p *advicePage) ID() pageID            { return pageAdvice }
+func (p *advicePage) SuiteName(*App) string { return "full" }
+
+func (p *advicePage) Focus(focused bool) {
+	p.focused = focused
+	p.body.focused = focused
+}
 
 func (p *advicePage) Layout(width, height int) {
 	p.width, p.height = width, height
-	p.viewport.Width = width
-	p.viewport.Height = max(height-3, 3)
+	// The action bar and its gap live above the list.
+	p.body.layout(width, max(height-2, 3))
 }
+
+func adviceZone(id string) string { return "adv:" + id }
 
 func (p *advicePage) Reload(a *App) {
 	p.keys = defaultKeys()
 	p.rows = nil
 	result := a.LastRun()
 	if result == nil {
-		p.viewport.SetContent(emptyState("ui.press_run"))
+		p.body.setContent(emptyState("ui.press_run"))
 		return
 	}
 	applicable := map[string]apply.Change{}
@@ -67,59 +75,61 @@ func (p *advicePage) Reload(a *App) {
 		}
 		p.rows = append(p.rows, row)
 	}
-	if p.cursor >= len(p.rows) {
-		p.cursor = max(len(p.rows)-1, 0)
-	}
-	p.viewport.SetContent(p.body(a))
+	p.cursor = clamp(p.cursor, 0, max(len(p.rows)-1, 0))
+	p.body.setContent(p.content(a))
 }
-
-func (p *advicePage) SuiteName(*App) string { return "full" }
 
 func (p *advicePage) Update(a *App, msg tea.Msg) tea.Cmd {
 	switch msg := msg.(type) {
 	case tea.MouseMsg:
 		if isPress(msg) {
 			for index, row := range p.rows {
-				if !row.selectable {
+				if !row.selectable || !clicked(msg, adviceZone(row.advice.ID)) {
 					continue
 				}
-				if clicked(msg, adviceZone(row.advice.ID)) {
-					p.toggle(a, row.advice.ID)
-					p.cursor = index
-					p.viewport.SetContent(p.body(a))
-					return nil
-				}
+				p.cursor = index
+				p.toggle(a, row.advice.ID)
+				p.body.setContent(p.content(a))
+				return nil
 			}
 		}
 
 	case tea.KeyMsg:
 		switch {
-		case msg.String() == " ":
+		case key.Matches(msg, p.keys.Toggle):
 			if row := p.currentRow(); row != nil && row.selectable {
 				p.toggle(a, row.advice.ID)
-				p.viewport.SetContent(p.body(a))
+				p.body.setContent(p.content(a))
 				return nil
+			}
+		case key.Matches(msg, p.keys.Activate):
+			// Enter on the list is the same approval the button offers, so the
+			// keyboard path never has to reach for the mouse.
+			if a.SelectedCount() > 0 {
+				return func() tea.Msg { return applyRequestMsg{} }
 			}
 		case key.Matches(msg, p.keys.Down):
 			if p.cursor < len(p.rows)-1 {
 				p.cursor++
-				p.viewport.SetContent(p.body(a))
-				p.viewport.LineDown(3)
+				p.body.setContent(p.content(a))
+				p.body.vp.LineDown(4)
 				return nil
 			}
 		case key.Matches(msg, p.keys.Up):
 			if p.cursor > 0 {
 				p.cursor--
-				p.viewport.SetContent(p.body(a))
-				p.viewport.LineUp(3)
+				p.body.setContent(p.content(a))
+				p.body.vp.LineUp(4)
 				return nil
 			}
 		}
 	}
-	var cmd tea.Cmd
-	p.viewport, cmd = p.viewport.Update(msg)
-	return cmd
+	return p.body.update(msg)
 }
+
+// applyRequestMsg lets the page ask the root model to open the apply dialog
+// without the page needing a reference back to it.
+type applyRequestMsg struct{}
 
 func (p *advicePage) currentRow() *adviceRow {
 	if p.cursor < 0 || p.cursor >= len(p.rows) {
@@ -135,44 +145,46 @@ func (p *advicePage) toggle(a *App, id string) {
 	a.Selected[id] = !a.Selected[id]
 }
 
-func adviceZone(id string) string { return "adv:" + id }
-
 func (p *advicePage) View(a *App) string {
 	if a.LastRun() == nil {
 		return emptyState("ui.press_run")
 	}
-	p.viewport.SetContent(p.body(a))
-	return lipgloss.JoinVertical(lipgloss.Left,
-		p.actionBar(a), "", p.viewport.View())
+	p.body.setContent(p.content(a))
+	return strings.Join([]string{p.actionBar(a), "", p.body.view()}, "\n")
 }
 
-// actionBar is the approval surface: how many changes are ticked, and the two
-// buttons that act on them.
+// actionBar is the approval surface: how many changes are ticked, and the four
+// controls that act on them. It is inside the page rather than in the global
+// toolbar because applying a change is not a global action - it only means
+// anything next to the list it applies to.
 func (p *advicePage) actionBar(a *App) string {
-	count := 0
-	for id, on := range a.Selected {
-		if on && a.Applicable[id].ID != "" {
-			count++
-		}
-	}
-	label := i18n.T("apply.selected", count)
-	buttons := []string{
-		button(zoneApply, i18n.T("ui.apply")+" ("+fmt.Sprint(count)+")",
-			btnSuccess, count > 0 && a.Running == ""),
+	count := a.SelectedCount()
+	controls := toolbar(
+		button(zoneApply, fmt.Sprintf("%s (%d)", i18n.T("ui.apply"), count),
+			btnSuccess, count > 0 && !a.Busy()),
 		button(zoneRollback, i18n.T("apply.rollback"), btnGhost, a.HasSnapshots),
 		button(zoneSelectSafe, i18n.T("apply.select_safe"), btnGhost, len(a.Applicable) > 0),
 		button(zoneClearSel, i18n.T("apply.clear"), btnGhost, count > 0),
+	)
+	label := sMuted.Render(i18n.T("apply.selected", count))
+	gap := p.width - visWidth(controls) - visWidth(label)
+	if gap < 2 {
+		return controls
 	}
-	return lipgloss.JoinHorizontal(lipgloss.Center,
-		toolbar(buttons...), "  ", sDim.Render(label))
+	return controls + strings.Repeat(" ", gap) + label
 }
 
-func (p *advicePage) body(a *App) string {
+func (p *advicePage) content(a *App) string {
 	result := a.LastRun()
-	var specs []sectionSpec
-	specs = append(specs, sectionSpec{i18n.T("sec.advice"),
-		sFaint.Render(i18n.T("misc.derived_from", result.Name,
-			result.StartedAt.Format("15:04"), len(result.Advice)))})
+	width := p.body.contentWidth()
+	inner := width - 4
+
+	sections := []section{{
+		title: i18n.T("sec.advice"),
+		badge: fmt.Sprint(len(p.rows)),
+		body: sFaint.Render(wrapText(i18n.T("misc.derived_from", result.Name,
+			result.StartedAt.Format("15:04"), len(result.Advice)), inner)),
+	}}
 
 	priority := -1
 	var current []string
@@ -180,8 +192,10 @@ func (p *advicePage) body(a *App) string {
 		if len(current) == 0 {
 			return
 		}
-		specs = append(specs, sectionSpec{i18n.T("misc.priority", priority),
-			strings.TrimRight(strings.Join(current, "\n"), "\n")})
+		sections = append(sections, section{
+			title: i18n.T("misc.priority", priority),
+			body:  strings.TrimRight(strings.Join(current, "\n"), "\n"),
+		})
 		current = nil
 	}
 	for index, row := range p.rows {
@@ -189,23 +203,30 @@ func (p *advicePage) body(a *App) string {
 			flush()
 			priority = row.advice.Priority
 		}
-		marker := "  "
-		if index == p.cursor {
-			marker = sAcc.Render("| ")
-		}
-		head := marker
-		if row.selectable {
-			head += checkbox(adviceZone(row.advice.ID), "", a.Selected[row.advice.ID], true) + " "
-			head += riskBadge(row.change.Risk) + " "
-		} else {
-			head += "     "
-		}
-		head += sInfo.Render("["+suite.CategoryLabel(row.advice.Category)+"] ") +
-			sBold.Render(row.advice.Title)
-		current = append(current, head, strings.TrimRight(adviceBody(row.advice, p.width-6), "\n"), "")
+		current = append(current, p.renderRow(a, index, row, inner), "")
 	}
 	flush()
-	return stack(p.width, specs...)
+	return stack(width, sections...)
+}
+
+func (p *advicePage) renderRow(a *App, index int, row adviceRow, width int) string {
+	marker := "  "
+	if index == p.cursor && p.focused {
+		marker = sAcc.Render("▎ ")
+	}
+	head := marker
+	indent := 2
+	if row.selectable {
+		head += checkbox(adviceZone(row.advice.ID), "", a.Selected[row.advice.ID], true) +
+			" " + riskBadge(row.change.Risk) + " "
+		indent = 4
+	}
+	head += sInfo.Render("["+suite.CategoryLabel(row.advice.Category)+"] ") +
+		sBold.Render(truncate(row.advice.Title, max(width-visWidth(head)-4, 12)))
+
+	pad := strings.Repeat(" ", indent)
+	detail := adviceBody(row.advice, width-indent)
+	return head + "\n" + pad + strings.ReplaceAll(detail, "\n", "\n"+pad)
 }
 
 func riskBadge(risk string) string {
@@ -218,27 +239,4 @@ func riskBadge(risk string) string {
 		return sBad.Render("[" + i18n.T("apply.risk.link") + "]")
 	}
 	return ""
-}
-
-// adviceBody is the detail under the title, without repeating the title.
-func adviceBody(advice suite.Advice, width int) string {
-	var b strings.Builder
-	b.WriteString("     " + sText.Render(wrapIndent(advice.Why, width-10, "     ")) + "\n")
-	for _, step := range advice.How {
-		if suite.IsCommand(step) {
-			b.WriteString("       " + sFaint.Render("$ ") + sAcc.Render(step) + "\n")
-			continue
-		}
-		b.WriteString("       " + sFaint.Render("• ") +
-			sText.Render(wrapIndent(step, width-12, "         ")) + "\n")
-	}
-	if advice.Gain != "" {
-		b.WriteString("     " + sOK.Render("→ ") +
-			sText.Render(wrapIndent(advice.Gain, width-10, "       ")) + "\n")
-	}
-	if advice.Risk != "" {
-		b.WriteString("     " + sWarn.Render("! ") +
-			sText.Render(wrapIndent(advice.Risk, width-10, "       ")) + "\n")
-	}
-	return b.String()
 }

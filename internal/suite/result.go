@@ -105,10 +105,14 @@ type Result struct {
 	Load       *probe.BloatResult       `json:"load,omitempty"`
 	Findings   []Finding                `json:"findings"`
 	Advice     []Advice                 `json:"advice"`
-	Baseline   *BaselineRef             `json:"baseline,omitempty"`
-	Score      float64                  `json:"score"`
-	Grade      string                   `json:"grade"`
-	Cancelled  bool                     `json:"cancelled"`
+	// DesyncNotNeeded lists hostlist domains that opened cleanly with the
+	// bypass engine stopped. They are false positives: every packet they cost
+	// the engine buys nothing.
+	DesyncNotNeeded []string     `json:"desync_not_needed,omitempty"`
+	Baseline        *BaselineRef `json:"baseline,omitempty"`
+	Score           float64      `json:"score"`
+	Grade           string       `json:"grade"`
+	Cancelled       bool         `json:"cancelled"`
 }
 
 // InternetLatency is the best non-gateway anchor; the gateway says nothing
