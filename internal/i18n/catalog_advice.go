@@ -387,3 +387,25 @@ func init() {
 		"adv.dns-leak.s3": {"%s got these from its DHCP lease, so the fix is to stop accepting them there", "%s bunları DHCP kirasından aldı; çözüm onları orada kabul etmeyi bırakmak"},
 	})
 }
+
+// Repairing a unit this tool broke.
+func init() {
+	register(map[string][2]string{
+		"adv.bpftune-repair.title": {"bpftune is not running — it failed to start", "bpftune çalışmıyor — başlatılamadı"},
+		"adv.bpftune-repair.why": {
+			"The unit tried to start and exited (%s). Until it starts, nothing it was tuning is being tuned, and the recommendations about its behaviour are about a daemon that is not there.",
+			"Birim başlamayı deneyip çıktı (%s). Başlayana kadar ayarladığı hiçbir şey ayarlanmıyor ve davranışıyla ilgili öneriler var olmayan bir servisi anlatıyor."},
+		"adv.bpftune-repair.s1":   {"An override is replacing the packaged ExecStart; remove it first", "Bir geçersiz kılma paketin ExecStart satırını değiştiriyor; önce onu kaldır"},
+		"adv.bpftune-repair.gain": {"The daemon starts again and its state can be judged at all", "Servis tekrar başlar ve durumu hakkında bir şey söylenebilir hâle gelir"},
+	})
+}
+
+// The before/after workflow is the baseline feature.
+func init() {
+	register(map[string][2]string{
+		"adv.measure-first.s0": {"Pin the current state as the reference (the baseline button, or:)", "Mevcut durumu referans olarak sabitle (referans al düğmesi ya da:)"},
+		"adv.measure-first.why": {
+			"Most internet-improvement advice becomes folklore because nobody measures it. Pin a baseline and every later result carries a delta against it, so a change either shows up or it did not do anything.",
+			"İnternet iyileştirme önerilerinin çoğu ölçülmediği için efsane hâline gelir. Bir referans sabitlersen sonraki her sonuç ona göre farkı taşır; böylece bir değişiklik ya görünür ya da hiçbir şey yapmamıştır."},
+	})
+}

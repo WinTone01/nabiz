@@ -178,3 +178,36 @@ type noticeMsg struct {
 	text  string
 	level toastLevel
 }
+
+// Dismissed reports whether a recommendation has been closed by hand.
+//
+// Not every recommendation describes a fault. Some ask a question only the
+// person at the keyboard can answer - is a 100 Mbit link expected here, is IPv6
+// wanted at all - and one that cannot be answered stays on the list forever and
+// teaches the reader to skim past the ones that matter.
+func (a *App) Dismissed(id string) bool {
+	for _, dismissed := range a.Cfg.Dismissed {
+		if dismissed == id {
+			return true
+		}
+	}
+	return false
+}
+
+// Dismiss hides a recommendation and remembers the choice.
+func (a *App) Dismiss(id string) {
+	if id == "" || a.Dismissed(id) {
+		return
+	}
+	a.Cfg.Dismissed = append(a.Cfg.Dismissed, id)
+	_ = config.Save(a.Cfg)
+}
+
+// RestoreDismissed brings every hidden recommendation back.
+func (a *App) RestoreDismissed() {
+	a.Cfg.Dismissed = nil
+	_ = config.Save(a.Cfg)
+}
+
+// DismissedCount is what the page shows next to the restore control.
+func (a *App) DismissedCount() int { return len(a.Cfg.Dismissed) }

@@ -322,3 +322,19 @@ func init() {
 		"dns.scope.global": {"global", "genel"},
 	})
 }
+
+// Unit states.
+func init() {
+	register(map[string][2]string{
+		"ui.failed": {"failed", "başlatılamadı"},
+	})
+}
+
+// Dismissing advice.
+func init() {
+	register(map[string][2]string{
+		"key.dismiss":          {"dismiss", "kapat"},
+		"apply.restore_hidden": {"Show %d hidden", "%d gizliyi göster"},
+		"apply.dismiss_row":    {"[x dismiss]", "[x kapat]"},
+	})
+}

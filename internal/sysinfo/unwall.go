@@ -33,6 +33,7 @@ type UnwallState struct {
 	HostlistMode  string   `json:"hostlist_mode,omitempty"`
 	GatewayMode   bool     `json:"gateway_mode"`
 	Running       bool     `json:"running"`
+	Failed        bool     `json:"failed"`
 	Enabled       bool     `json:"enabled"`
 	PID           int      `json:"pid"`
 	NftOK         bool     `json:"nft_ok"`
@@ -53,6 +54,8 @@ func (s UnwallState) Label() string {
 	switch {
 	case !s.Installed:
 		return i18n.T("ui.notinstalled")
+	case s.Failed:
+		return i18n.T("ui.failed")
 	case !s.Running:
 		return i18n.T("ui.stopped")
 	default:
@@ -108,6 +111,9 @@ func ReadUnwall() UnwallState {
 		if out, _ := util.Run(6*time.Second, "systemctl", "is-active", unwallUnit); strings.TrimSpace(out) == "active" {
 			state.Running = true
 		}
+	}
+	if out, _ := util.Run(6*time.Second, "systemctl", "is-failed", unwallUnit); strings.TrimSpace(out) == "failed" {
+		state.Failed = true
 	}
 	conf := parseKV(util.ReadText(filepath.Join(unwallEtc, "unwall.conf"), ""))
 	state.QNum, _ = strconv.Atoi(conf["QNUM"])

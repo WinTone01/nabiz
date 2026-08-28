@@ -18,12 +18,13 @@ import (
 
 // Result reports what happened, including whether the safety net fired.
 type Result struct {
-	Snapshot   *Snapshot
-	Applied    []string
-	Verified   bool
-	RolledBack bool
-	Output     string
-	Err        error
+	Snapshot       *Snapshot
+	Applied        []string
+	Verified       bool
+	RolledBack     bool
+	BrokenServices []string
+	Output         string
+	Err            error
 }
 
 // Prepare writes the snapshot and both scripts without running anything, so a
@@ -133,6 +134,7 @@ func writeScript(path string, lines []string) error {
 // connection still works. If it does not, the restore script runs immediately.
 func Apply(ctx context.Context, snapshot *Snapshot, verify bool) Result {
 	result := Result{Snapshot: snapshot}
+	before := serviceStates(snapshot)
 	out, err := runPrivileged(ctx, filepath.Join(snapshot.Dir, "apply.sh"))
 	result.Output = out
 	if err != nil {
@@ -158,8 +160,15 @@ func Apply(ctx context.Context, snapshot *Snapshot, verify bool) Result {
 	case <-time.After(3 * time.Second):
 	}
 	if Connectivity(ctx, 25*time.Second) {
-		result.Verified = true
-		return result
+		// The network is only half the promise. A change that leaves a service
+		// it restarted in a failed state passed the connectivity check happily
+		// once, and the broken unit stayed broken until someone noticed by eye.
+		if broken := brokenServices(before); len(broken) == 0 {
+			result.Verified = true
+			return result
+		} else {
+			result.BrokenServices = broken
+		}
 	}
 	rollbackOut, rollbackErr := runPrivileged(context.Background(),
 		filepath.Join(snapshot.Dir, "restore.sh"))
@@ -285,4 +294,72 @@ func runPrivileged(ctx context.Context, script string) (string, error) {
 	command.Stdin = os.Stdin
 	out, err := command.CombinedOutput()
 	return string(out), err
+}
+
+// serviceStates records which units are running before a batch, so afterwards
+// there is something to compare against. Units are taken both from what a
+// change declares and from any `systemctl restart` it runs, because the second
+// is easy to add and easy to forget to declare.
+func serviceStates(snapshot *Snapshot) map[string]bool {
+	states := map[string]bool{}
+	for _, name := range snapshotServices(snapshot) {
+		states[name] = unitActive(name)
+	}
+	return states
+}
+
+func snapshotServices(snapshot *Snapshot) []string {
+	seen := map[string]bool{}
+	var out []string
+	note := func(name string) {
+		name = strings.TrimSuffix(strings.TrimSpace(name), ".service")
+		if name == "" || seen[name] {
+			return
+		}
+		seen[name] = true
+		out = append(out, name)
+	}
+	for _, change := range snapshot.Changes {
+		for _, name := range change.Services {
+			note(name)
+		}
+		for _, command := range change.Apply {
+			fields := strings.Fields(command)
+			for index := 0; index+2 < len(fields); index++ {
+				if fields[index] != "systemctl" {
+					continue
+				}
+				switch fields[index+1] {
+				case "restart", "start", "reload", "try-restart", "reload-or-restart":
+					note(fields[index+2])
+				}
+			}
+		}
+	}
+	return out
+}
+
+func unitActive(name string) bool {
+	out, _ := util.Run(5*time.Second, "systemctl", "is-active", name)
+	return strings.TrimSpace(out) == "active"
+}
+
+func unitFailed(name string) bool {
+	out, _ := util.Run(5*time.Second, "systemctl", "is-failed", name)
+	return strings.TrimSpace(out) == "failed"
+}
+
+// brokenServices lists units that were running before the batch and are not now.
+func brokenServices(before map[string]bool) []string {
+	var out []string
+	for name, wasActive := range before {
+		if !wasActive {
+			continue
+		}
+		if unitFailed(name) || !unitActive(name) {
+			out = append(out, name)
+		}
+	}
+	sort.Strings(out)
+	return out
 }

@@ -42,6 +42,11 @@ type Change struct {
 	Files   []string `json:"files,omitempty"` // snapshotted before applying
 	Apply   []string `json:"apply"`           // shell lines
 	Restore []string `json:"restore"`         // inverse shell lines
+	// Services this change touches. Their unit state is recorded before the
+	// batch runs and checked afterwards: a change that leaves a service failing
+	// is rolled back even when the network still works, which is exactly how a
+	// broken bpftune unit survived the connectivity check.
+	Services []string `json:"services,omitempty"`
 }
 
 // Snapshot is one applied batch, kept so it can be rolled back later.
@@ -106,9 +111,10 @@ func Available(result suite.Result) []Change {
 			path := "/etc/unwall/autohostlist.txt"
 			byID[advice.ID] = Change{
 				ID: advice.ID, Title: advice.Title, Risk: RiskMedium,
-				Files:   []string{path},
-				Apply:   []string{": > " + path, "systemctl restart unwall"},
-				Restore: []string{"systemctl restart unwall"},
+				Files:    []string{path},
+				Apply:    []string{": > " + path, "systemctl restart unwall"},
+				Restore:  []string{"systemctl restart unwall"},
+				Services: []string{"unwall"},
 			}
 
 		case "dns-leak":
@@ -383,25 +389,30 @@ func extraChanges(result suite.Result, iface string, sysctls map[string]string,
 		// to do physical work in, not a change to make.
 
 		case "bpftune-tuner-off":
-			binary := util.Which("bpftune")
-			if binary == "" {
-				continue
-			}
-			const dropin = "/etc/systemd/system/bpftune.service.d/99-nabiz-tuners.conf"
+			// Overriding ExecStart to allow a single tuner was offered here and
+			// left the service failing to start: the flag is not verifiable from
+			// outside, and a change whose result cannot be checked has no place
+			// behind a one-click button. Stopping the daemon is the honest
+			// version of "stop the tuner" - it is checkable and it reverses.
 			add(Change{
 				ID: advice.ID, Title: advice.Title, Risk: RiskMedium,
+				Apply:    []string{"systemctl disable --now bpftune"},
+				Restore:  []string{"systemctl enable --now bpftune"},
+				Services: []string{},
+			})
+
+		case "bpftune-repair":
+			add(Change{
+				ID: advice.ID, Title: advice.Title, Risk: RiskLow,
 				Apply: []string{
-					"mkdir -p /etc/systemd/system/bpftune.service.d",
-					fmt.Sprintf("printf '[Service]\\nExecStart=\\nExecStart=%s -a tcp_conn_tuner\\n' > %s",
-						binary, dropin),
+					"rm -f /etc/systemd/system/bpftune.service.d/99-nabiz-tuners.conf",
+					"rmdir --ignore-fail-on-non-empty /etc/systemd/system/bpftune.service.d",
 					"systemctl daemon-reload",
+					"systemctl reset-failed bpftune",
 					"systemctl restart bpftune",
 				},
-				Restore: []string{
-					"rm -f " + dropin,
-					"systemctl daemon-reload",
-					"systemctl restart bpftune",
-				},
+				Restore:  []string{"systemctl reset-failed bpftune || true"},
+				Services: []string{"bpftune"},
 			})
 
 		case "dns-transparent":

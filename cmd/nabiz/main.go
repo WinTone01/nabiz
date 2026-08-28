@@ -703,6 +703,10 @@ func cmdAB(args []string) error {
 		printResult(results[index])
 	}
 
+	if saved := config.Load(); true {
+		saved.LastComparison = time.Now().Format(time.RFC3339)
+		_ = config.Save(saved)
+	}
 	text := report.ABMarkdown(labelOn, results[0], labelOff, results[1])
 	fmt.Println("\n" + text)
 	if *mdPath != "" {

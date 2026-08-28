@@ -174,3 +174,11 @@ func init() {
 		"fnd.ipv6-missing.title": {"no IPv6 connectivity, although DNS returns AAAA records", "IPv6 bağlantısı yok, buna karşın DNS AAAA kaydı döndürüyor"},
 	})
 }
+
+// A unit that tried to start and died is not the same as one that is off.
+func init() {
+	register(map[string][2]string{
+		"fnd.bpftune-failed.title":    {"bpftune failed to start (%s)", "bpftune başlatılamadı (%s)"},
+		"fnd.bpftune-failed.override": {"an override in /etc/systemd/system/bpftune.service.d is replacing the packaged ExecStart; removing it restores the unit", "/etc/systemd/system/bpftune.service.d içindeki bir geçersiz kılma paketin ExecStart satırını değiştiriyor; onu kaldırmak birimi eski hâline getirir"},
+	})
+}

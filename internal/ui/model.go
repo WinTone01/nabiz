@@ -255,6 +255,10 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case abDoneMsg:
 		m.app.Running = ""
 		m.app.AB = &msg
+		// remember when a comparison last ran, so the suggestion to run one is
+		// not repeated after every measurement
+		m.app.Cfg.LastComparison = time.Now().Format(time.RFC3339)
+		_ = config.Save(m.app.Cfg)
 		// the comparison is the only thing that can prove a hostlist entry is a
 		// false positive, so carry that finding into the stored run and
 		// re-derive: the advice list gains an item the single-run path cannot

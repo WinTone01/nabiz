@@ -18,7 +18,7 @@ type keyMap struct {
 	PageUp, PageDown, Home, End     key.Binding
 	NextPage, PrevPage              key.Binding
 	Focus, FocusBack                key.Binding
-	Activate, Toggle, Back          key.Binding
+	Activate, Toggle, Back, Dismiss key.Binding
 	Run, Stop, Export, Baseline, AB key.Binding
 	Palette, Lang, Help, Quit       key.Binding
 	Refresh                         key.Binding
@@ -45,6 +45,7 @@ func defaultKeys() keyMap {
 		FocusBack: bind("⇧tab", i18n.T("key.focus"), "shift+tab"),
 		Activate:  bind("enter", i18n.T("key.confirm"), "enter"),
 		Toggle:    bind("space", i18n.T("key.toggle"), " "),
+		Dismiss:   bind("d", i18n.T("key.dismiss"), "d", "D"),
 		Back:      bind("esc", i18n.T("key.back"), "esc"),
 
 		Run:      bind("r", i18n.T("key.run"), "r", "R"),
@@ -72,7 +73,7 @@ func (k keyMap) FullHelp() [][]key.Binding {
 	return [][]key.Binding{
 		{k.Up, k.Down, k.PageUp, k.PageDown, k.Home, k.End},
 		{k.Focus, k.FocusBack, k.NextPage, k.PrevPage, k.Left, k.Right},
-		{k.Activate, k.Toggle, k.Back, k.Refresh},
+		{k.Activate, k.Toggle, k.Dismiss, k.Back, k.Refresh},
 		{k.Run, k.Stop, k.Export, k.Baseline, k.AB},
 		{k.Palette, k.Lang, k.Help, k.Quit},
 	}

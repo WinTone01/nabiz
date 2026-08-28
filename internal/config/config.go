@@ -60,6 +60,13 @@ type Config struct {
 	UpURL             string           `json:"up_url"`
 	Thresholds        Thresholds       `json:"thresholds"`
 	UseUnwallHostlist bool             `json:"use_unwall_hostlist"`
+	// Dismissed advice ids. Some recommendations answer a question rather than
+	// describe a fault - whether a 100 Mbit link is expected, whether IPv6 is
+	// wanted - and only the person at the keyboard can close those.
+	Dismissed []string `json:"dismissed,omitempty"`
+	// LastComparison is when an A/B last ran, so the suggestion to run one is
+	// not repeated after every single measurement.
+	LastComparison string `json:"last_comparison,omitempty"`
 }
 
 // Default returns the shipped configuration.

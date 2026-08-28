@@ -3,6 +3,7 @@ package suite
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/WinTone01/nabiz/internal/config"
 	"github.com/WinTone01/nabiz/internal/i18n"
@@ -411,6 +412,25 @@ func GenerateAdvice(result Result, cfg config.Config) []Advice {
 
 	// --- 5. bpftune ---------------------------------------------------------------
 	bpftune := result.Env.Bpftune
+	if bpftune.Failed {
+		steps := []string{}
+		if bpftune.Overridden {
+			steps = append(steps,
+				t("adv.bpftune-repair.s1"),
+				"sudo rm -f /etc/systemd/system/bpftune.service.d/99-nabiz-tuners.conf",
+				"sudo systemctl daemon-reload")
+		}
+		steps = append(steps,
+			"sudo systemctl reset-failed bpftune && sudo systemctl restart bpftune",
+			"systemctl status bpftune")
+		out.push(Advice{
+			ID: "bpftune-repair", Priority: 1, Category: catBpftune,
+			Title: t("adv.bpftune-repair.title"),
+			Why:   t("adv.bpftune-repair.why", bpftune.FailDetail),
+			How:   steps,
+			Gain:  t("adv.bpftune-repair.gain"),
+		})
+	}
 	if bpftune.Installed && bpftune.Running {
 		bdp := sysinfo.BDPBytes(link.SpeedMbit, rtt)
 		for _, tunable := range bpftune.Tunables {
@@ -604,12 +624,12 @@ func GenerateAdvice(result Result, cfg config.Config) []Advice {
 			Gain:  t("adv.zapret-strategy.gain"),
 		})
 	}
-	if len(result.DesyncNotNeeded) > 0 {
+	notNeeded := stillListed(result.DesyncNotNeeded)
+	if len(notNeeded) > 0 {
 		out.push(Advice{
 			ID: "hostlist-false-positives", Priority: 2, Category: catDPI,
-			Title: t("adv.hostlist-fp.title", len(result.DesyncNotNeeded)),
-			Why: t("adv.hostlist-fp.why", joinN(result.DesyncNotNeeded, 4),
-				len(result.DesyncNotNeeded)),
+			Title: t("adv.hostlist-fp.title", len(notNeeded)),
+			Why:   t("adv.hostlist-fp.why", joinN(notNeeded, 4), len(notNeeded)),
 			How: []string{
 				t("adv.hostlist-fp.s1"),
 				"nabiz apply hostlist-false-positives",
@@ -632,6 +652,7 @@ func GenerateAdvice(result Result, cfg config.Config) []Advice {
 		})
 	}
 	if unwall.Running && len(result.DPI) > 0 && len(result.DesyncNotNeeded) == 0 &&
+		comparisonIsStale(cfg) &&
 		len(splitHelps) == 0 && len(blocked) == 0 && unwall.HostlistN+unwall.AutoHostlistN > 0 {
 		out.push(Advice{
 			ID: "unwall-verify", Priority: 4, Category: catDPI,
@@ -784,20 +805,33 @@ func GenerateAdvice(result Result, cfg config.Config) []Advice {
 			Gain: t("adv.monitor-long.gain"),
 		})
 	}
-	out.push(Advice{
-		ID: "measure-first", Priority: 5, Category: catMethod,
-		Title: t("adv.measure-first.title"), Why: t("adv.measure-first.why"),
-		How: []string{t("adv.measure-first.s1"), "nabiz load",
-			t("adv.measure-first.s2"), t("adv.measure-first.s3"), "nabiz load",
-			"nabiz ab --target unwall|bpftune"},
-		Gain: t("adv.measure-first.gain"),
-	})
+	// Once a baseline exists this is no longer advice, it is the workflow the
+	// tool is already running: every later result carries a delta against it.
+	if result.Baseline == nil {
+		out.push(Advice{
+			ID: "measure-first", Priority: 5, Category: catMethod,
+			Title: t("adv.measure-first.title"), Why: t("adv.measure-first.why"),
+			How: []string{
+				t("adv.measure-first.s0"),
+				"nabiz load --baseline",
+				t("adv.measure-first.s2"),
+				t("adv.measure-first.s3"),
+				"nabiz load",
+			},
+			Gain: t("adv.measure-first.gain"),
+		})
+	}
 
 	SortAdvice(out.items)
 	return out.items
 }
 
 // deadHostlistEntries are hostlist names the DNS probe could not resolve.
+//
+// The scan is measurement data and survives a re-derivation, so the list has to
+// be intersected with the hostlist as it stands now. Otherwise removing the
+// entries leaves the recommendation in place, describing names that are no
+// longer there.
 func deadHostlistEntries(result Result) []string {
 	var out []string
 	for _, verdict := range result.DPI {
@@ -805,7 +839,38 @@ func deadHostlistEntries(result Result) []string {
 			out = append(out, strings.ToLower(verdict.Domain))
 		}
 	}
+	return stillListed(out)
+}
+
+// stillListed keeps only the names the hostlists actually contain.
+func stillListed(names []string) []string {
+	if len(names) == 0 {
+		return nil
+	}
+	listed := map[string]bool{}
+	for _, domain := range sysinfo.UnwallDomains(8192) {
+		listed[strings.ToLower(strings.TrimPrefix(domain, "."))] = true
+	}
+	var out []string
+	for _, name := range names {
+		if listed[name] || listed[strings.TrimPrefix(name, "www.")] {
+			out = append(out, name)
+		}
+	}
 	return out
+}
+
+// comparisonIsStale reports whether it has been long enough since the last A/B
+// for asking again to be useful rather than noise.
+func comparisonIsStale(cfg config.Config) bool {
+	if cfg.LastComparison == "" {
+		return true
+	}
+	last, err := time.Parse(time.RFC3339, cfg.LastComparison)
+	if err != nil {
+		return true
+	}
+	return time.Since(last) > 7*24*time.Hour
 }
 
 func nfqDropCount(result Result) int64 {

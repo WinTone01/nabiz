@@ -6,6 +6,7 @@ import (
 
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
+	zone "github.com/lrstanley/bubblezone"
 
 	"github.com/WinTone01/nabiz/internal/apply"
 	"github.com/WinTone01/nabiz/internal/i18n"
@@ -68,6 +69,9 @@ func (p *advicePage) Reload(a *App) {
 	}
 	a.Applicable = applicable
 	for _, advice := range result.Advice {
+		if a.Dismissed(advice.ID) {
+			continue
+		}
 		row := adviceRow{advice: advice}
 		if change, ok := applicable[advice.ID]; ok {
 			copied := change
@@ -83,6 +87,18 @@ func (p *advicePage) Update(a *App, msg tea.Msg) tea.Cmd {
 	switch msg := msg.(type) {
 	case tea.MouseMsg:
 		if isPress(msg) {
+			if clicked(msg, zoneRestoreDismissed) {
+				a.RestoreDismissed()
+				p.Reload(a)
+				return nil
+			}
+			for _, row := range p.rows {
+				if clicked(msg, dismissZone(row.advice.ID)) {
+					a.Dismiss(row.advice.ID)
+					p.Reload(a)
+					return nil
+				}
+			}
 			for index, row := range p.rows {
 				if !row.selectable || !clicked(msg, adviceZone(row.advice.ID)) {
 					continue
@@ -100,6 +116,12 @@ func (p *advicePage) Update(a *App, msg tea.Msg) tea.Cmd {
 			if row := p.currentRow(); row != nil && row.selectable {
 				p.toggle(a, row.advice.ID)
 				p.body.setContent(p.content(a))
+				return nil
+			}
+		case key.Matches(msg, p.keys.Dismiss):
+			if row := p.currentRow(); row != nil {
+				a.Dismiss(row.advice.ID)
+				p.Reload(a)
 				return nil
 			}
 		case key.Matches(msg, p.keys.Activate):
@@ -157,6 +179,10 @@ func (p *advicePage) View(a *App) string {
 // controls that act on them. It is inside the page rather than in the global
 // toolbar because applying a change is not a global action - it only means
 // anything next to the list it applies to.
+func dismissZone(id string) string { return "adv:dismiss:" + id }
+
+const zoneRestoreDismissed = "adv:restore"
+
 func (p *advicePage) actionBar(a *App) string {
 	count := a.SelectedCount()
 	controls := toolbar(
@@ -166,6 +192,11 @@ func (p *advicePage) actionBar(a *App) string {
 		button(zoneSelectAll, i18n.T("apply.select_all"), btnGhost, len(a.Applicable) > 0),
 		button(zoneClearSel, i18n.T("apply.clear"), btnGhost, count > 0),
 	)
+	if hidden := a.DismissedCount(); hidden > 0 {
+		controls = toolbar(controls,
+			button(zoneRestoreDismissed, i18n.T("apply.restore_hidden", hidden),
+				btnGhost, true))
+	}
 	label := sMuted.Render(i18n.T("apply.selected", count))
 	gap := p.width - visWidth(controls) - visWidth(label)
 	if gap < 2 {
@@ -183,7 +214,7 @@ func (p *advicePage) content(a *App) string {
 		title: i18n.T("sec.advice"),
 		badge: fmt.Sprint(len(p.rows)),
 		body: sFaint.Render(wrapText(i18n.T("misc.derived_from", result.Name,
-			result.StartedAt.Format("15:04"), len(result.Advice)), inner)),
+			result.StartedAt.Format("15:04"), len(p.rows)), inner)),
 	}}
 
 	priority := -1
@@ -221,8 +252,16 @@ func (p *advicePage) renderRow(a *App, index int, row adviceRow, width int) stri
 			" " + riskBadge(row.change.Risk) + " "
 		indent = 4
 	}
+	// the dismiss control sits on the right of every row: a recommendation you
+	// have already decided about should be closable wherever you are reading it
+	close := zone.Mark(dismissZone(row.advice.ID),
+		sFaint.Render(i18n.T("apply.dismiss_row")))
 	head += sInfo.Render("["+suite.CategoryLabel(row.advice.Category)+"] ") +
-		sBold.Render(truncate(row.advice.Title, max(width-visWidth(head)-4, 12)))
+		sBold.Render(truncate(row.advice.Title,
+			max(width-visWidth(head)-visWidth(close)-4, 12)))
+	if gap := width - visWidth(head) - visWidth(close); gap > 1 {
+		head += strings.Repeat(" ", gap) + close
+	}
 
 	pad := strings.Repeat(" ", indent)
 	detail := adviceBody(row.advice, width-indent)

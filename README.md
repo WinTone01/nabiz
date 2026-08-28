@@ -149,9 +149,22 @@ only ever grows, and the resolver-leak advice names the scope that leaks —
 global fallback does nothing about the addresses a DHCP lease put on one
 interface. A loopback stub and a MagicDNS address are not leaks.
 
+The hostlist recommendations work the same way: the domains a scan proved do
+not need the bypass are intersected with what the hostlist contains right now,
+so removing them removes the recommendation too.
+
 A recommendation that will not go away is telling you something did not take —
 `bpftune` raising `tcp_rmem` back up, for instance, which is why there is a
-separate recommendation to stop that tuner rather than keep fighting it.
+separate recommendation to stop that tuner rather than keep fighting it. A unit
+that fails to start counts as a fault and is reported as one, including when
+nabiz itself is what broke it.
+
+Some recommendations ask a question instead of describing a fault — whether a
+100 Mbit link is what you expect, whether you want IPv6 at all. Nobody but the
+person at the keyboard can answer those, so they carry a dismiss control
+(`[x dismiss]` on the row, or `d`). Dismissals persist, and **Show N hidden**
+brings them all back. Advice that repeats on a schedule rather than on a fault —
+re-measuring the bypass — waits a week before asking again.
 
 ## Telling block types apart
 

@@ -2,6 +2,7 @@ package sysinfo
 
 import (
 	"fmt"
+	"os"
 	"regexp"
 	"sort"
 	"strconv"
@@ -22,6 +23,10 @@ import (
 // The judgement call at the end is whether the buffers it grew make sense for
 // the bandwidth-delay product we just measured, because "bigger" and "better"
 // are not the same thing on a home line.
+
+// dropInPath is the override this tool writes; its presence explains a
+// failure that would otherwise look like a packaging problem.
+const dropInPath = "/etc/systemd/system/bpftune.service.d/99-nabiz-tuners.conf"
 
 const (
 	unitName = "bpftune.service"
@@ -60,6 +65,9 @@ type Tunable struct {
 type BpftuneState struct {
 	Installed  bool           `json:"installed"`
 	Running    bool           `json:"running"`
+	Failed     bool           `json:"failed"`
+	FailDetail string         `json:"fail_detail,omitempty"`
+	Overridden bool           `json:"overridden,omitempty"`
 	Enabled    bool           `json:"enabled"`
 	Version    string         `json:"version,omitempty"`
 	Changes    []Change       `json:"changes"`
@@ -75,6 +83,8 @@ func (s BpftuneState) Label() string {
 	switch {
 	case !s.Installed:
 		return i18n.T("ui.notinstalled")
+	case s.Failed:
+		return i18n.T("ui.failed")
 	case !s.Running:
 		return i18n.T("ui.stopped")
 	case len(s.Changes) == 0:
@@ -129,6 +139,18 @@ func ReadBpftune() BpftuneState {
 	}
 	if out, _ := util.Run(5*time.Second, "systemctl", "is-enabled", unitName); strings.TrimSpace(out) == "enabled" {
 		state.Enabled = true
+	}
+	// "not running" and "tried to run and died" are different problems, and the
+	// second one is usually something that was done to the machine on purpose.
+	if out, _ := util.Run(5*time.Second, "systemctl", "is-failed", unitName); strings.TrimSpace(out) == "failed" {
+		state.Failed = true
+		if detail, ok := util.Run(6*time.Second, "systemctl", "show", "-p", "ExecMainStatus",
+			"-p", "Result", "--value", unitName); ok {
+			state.FailDetail = strings.Join(strings.Fields(detail), " ")
+		}
+	}
+	if _, err := os.Stat(dropInPath); err == nil {
+		state.Overridden = true
 	}
 	state.readJournal()
 	state.readTunables()
@@ -282,6 +304,15 @@ func AssessBpftune(state BpftuneState, linkMbit int, rttMs float64, retransPct f
 	}
 	note := func(level, key, text, hint string) {
 		notes = append(notes, Note{Level: level, Key: key, Source: "bpftune", Text: text, Hint: hint})
+	}
+	if state.Failed {
+		hint := ""
+		if state.Overridden {
+			hint = i18n.T("fnd.bpftune-failed.override")
+		}
+		note("bad", "bpftune-failed",
+			i18n.T("fnd.bpftune-failed.title", state.FailDetail), hint)
+		return notes
 	}
 	if !state.Running {
 		note("info", "bpftune-stopped", i18n.T("fnd.bpftune-stopped.title"), "")
