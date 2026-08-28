@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"fmt"
 	"path/filepath"
 	"strings"
 
@@ -60,7 +61,18 @@ func (p *reportsPage) loadSelection(a *App) {
 	p.viewport.GotoTop()
 }
 
+func reportZone(index int) string { return fmt.Sprintf("rep:%d", index) }
+
 func (p *reportsPage) Update(a *App, msg tea.Msg) tea.Cmd {
+	if mouseMsg, ok := msg.(tea.MouseMsg); ok && isPress(mouseMsg) {
+		for index := range p.paths {
+			if clicked(mouseMsg, reportZone(index)) {
+				p.index = index
+				p.loadSelection(a)
+				return nil
+			}
+		}
+	}
 	if keyMsg, ok := msg.(tea.KeyMsg); ok {
 		switch {
 		case key.Matches(keyMsg, p.keys.Up):
@@ -93,10 +105,12 @@ func (p *reportsPage) View(a *App) string {
 		}
 		name := strings.TrimSuffix(filepath.Base(path), ".json")
 		if index == p.index {
-			lines = append(lines, sChipOn.Render(padRight(name, listWidth-2)))
+			lines = append(lines, clickableRow(reportZone(index),
+				sChipOn.Render(padRight(name, listWidth-2))))
 			continue
 		}
-		lines = append(lines, sFaint.Render("  "+name))
+		lines = append(lines, clickableRow(reportZone(index),
+			sFaint.Render(padRight("  "+name, listWidth-2))))
 	}
 	if len(lines) == 0 {
 		lines = []string{emptyState("misc.no_runs")}

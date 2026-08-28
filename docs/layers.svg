@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 430" width="900" height="430" role="img" aria-label="What Nabız measures, layer by layer">
+  <style>
+    .t  { font-family: ui-monospace,SFMono-Regular,Menlo,monospace; }
+    .h  { font-size: 15px; font-weight: 700; }
+    .b  { font-size: 12.5px; fill: #8b8ba4; }
+    .n  { font-size: 11px; fill: #6f6f82; }
+    .box{ fill: none; stroke-width: 1.5; rx: 10; }
+  </style>
+
+  <text class="t h" x="24" y="30" fill="#61d4ec">What it measures — and where the answer comes from</text>
+
+  <!-- layer 5 -->
+  <rect class="box" x="24" y="52" width="852" height="62" stroke="#b79cff"/>
+  <text class="t h" x="44" y="78" fill="#b79cff">Reachability</text>
+  <text class="t b" x="44" y="98">TLS ClientHello · whole / split at record / split across SNI · alternate SNI · QUIC version negotiation</text>
+  <text class="t n" x="770" y="78">userspace</text>
+
+  <!-- layer 4 -->
+  <rect class="box" x="24" y="124" width="852" height="62" stroke="#61d4ec"/>
+  <text class="t h" x="44" y="150" fill="#61d4ec">Name resolution</text>
+  <text class="t b" x="44" y="170">plain UDP · TCP · DoT 853 · DoH 443 — interception, injection, NXDOMAIN hijack, DNSSEC, EDNS0, fallback leak</text>
+  <text class="t n" x="770" y="150">wire format</text>
+
+  <!-- layer 3 -->
+  <rect class="box" x="24" y="196" width="852" height="62" stroke="#5fdf90"/>
+  <text class="t h" x="44" y="222" fill="#5fdf90">Transport</text>
+  <text class="t b" x="44" y="242">per-socket tcp_info: rtt · min_rtt · cwnd · ssthresh · retransmits · delivery rate · congestion control</text>
+  <text class="t n" x="720" y="222">netlink INET_DIAG</text>
+
+  <!-- layer 2 -->
+  <rect class="box" x="24" y="268" width="852" height="62" stroke="#f3c552"/>
+  <text class="t h" x="44" y="294" fill="#f3c552">Path</text>
+  <text class="t b" x="44" y="314">per-hop loss and latency · real path MTU by DF binary search · PMTU black holes</text>
+  <text class="t n" x="716" y="294">ICMP + IP_RECVERR</text>
+
+  <!-- layer 1 -->
+  <rect class="box" x="24" y="340" width="852" height="66" stroke="#ff7378"/>
+  <text class="t h" x="44" y="366" fill="#ff7378">Physical link</text>
+  <text class="t b" x="44" y="386">speed · duplex · MTU · carrier_up_count · rx_crc_errors · EEE · qdisc — and every link-down in the kernel log</text>
+  <text class="t n" x="744" y="366">sysfs + wtmp</text>
+
+  <text class="t n" x="24" y="424">Nothing above needs root. Only the NFQUEUE counters do — and when they cannot be read, the tool says so.</text>
+</svg>

@@ -39,7 +39,18 @@ func (p *testPage) Reload(a *App) {
 	p.viewport.SetContent(p.body(a))
 }
 
+func suiteZone(name string) string { return "suite:" + name }
+
 func (p *testPage) Update(a *App, msg tea.Msg) tea.Cmd {
+	if mouseMsg, ok := msg.(tea.MouseMsg); ok && isPress(mouseMsg) {
+		for index, name := range suite.Names {
+			if clicked(mouseMsg, suiteZone(name)) {
+				a.SuitePick = index
+				p.Reload(a)
+				return nil
+			}
+		}
+	}
 	if keyMsg, ok := msg.(tea.KeyMsg); ok {
 		switch {
 		case key.Matches(keyMsg, p.keys.PrevSel):
@@ -62,11 +73,7 @@ func (p *testPage) SuiteName(a *App) string { return suite.Names[a.SuitePick] }
 func (p *testPage) View(a *App) string {
 	var chips []string
 	for index, name := range suite.Names {
-		style := sChipOff
-		if index == a.SuitePick {
-			style = sChipOn
-		}
-		chips = append(chips, style.Render(name))
+		chips = append(chips, chip(suiteZone(name), name, index == a.SuitePick))
 	}
 	description, _ := suite.Describe(suite.Names[a.SuitePick])
 	if i18n.Current() != i18n.TR {

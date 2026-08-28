@@ -268,3 +268,35 @@ func init() {
 		"apply.listempty":   {"no applicable changes in the last run", "son çalışmada uygulanabilir değişiklik yok"},
 	})
 }
+
+// Buttons and dialogs.
+func init() {
+	register(map[string][2]string{
+		"ui.cancel": {"Cancel", "Vazgeç"},
+		"ui.start":  {"Start", "Başlat"},
+		"ui.apply":  {"Apply", "Uygula"},
+		"ui.close":  {"Close", "Kapat"},
+	})
+}
+
+// The in-interface approval flow.
+func init() {
+	register(map[string][2]string{
+		"apply.selected":     {"%d selected", "%d seçili"},
+		"apply.rollback":     {"Rollback", "Geri al"},
+		"apply.select_safe":  {"Select safe", "Güvenlileri seç"},
+		"apply.clear":        {"Clear", "Temizle"},
+		"apply.risk.low":     {"low", "düşük"},
+		"apply.risk.medium":  {"medium", "orta"},
+		"apply.risk.link":    {"link", "bağlantı"},
+		"apply.dialog.title": {"Apply %d changes", "%d değişiklik uygulanacak"},
+		"apply.dialog.body": {
+			"A snapshot is written first and an undo script is generated from your current values.\n\nAfter applying, connectivity is verified (ping + DNS + TLS). If it fails, everything is rolled back automatically.\n\nYou will be asked for your password once.\n\n%s",
+			"Önce yedek alınır ve mevcut değerlerinden bir geri alma betiği üretilir.\n\nUygulandıktan sonra bağlantı doğrulanır (ping + DNS + TLS). Başarısız olursa her şey otomatik geri alınır.\n\nŞifren bir kez sorulacak.\n\n%s"},
+		"apply.dialog.rollback": {"Undo the last applied batch?\n\n%s", "Son uygulanan değişiklikler geri alınsın mı?\n\n%s"},
+		"apply.running":         {"applying…", "uygulanıyor…"},
+		"apply.needs_pkexec": {
+			"pkexec was not found. Running this from a full-screen interface needs a graphical password prompt; use `nabiz apply` in a terminal instead.",
+			"pkexec bulunamadı. Tam ekran arayüzden çalıştırmak grafik şifre istemi gerektirir; bunun yerine terminalde `nabiz apply` kullan."},
+	})
+}

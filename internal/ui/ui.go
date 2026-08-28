@@ -13,7 +13,9 @@ import (
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	zone "github.com/lrstanley/bubblezone"
 
+	"github.com/WinTone01/nabiz/internal/apply"
 	"github.com/WinTone01/nabiz/internal/config"
 	"github.com/WinTone01/nabiz/internal/i18n"
 	"github.com/WinTone01/nabiz/internal/monitor"
@@ -21,6 +23,7 @@ import (
 	"github.com/WinTone01/nabiz/internal/report"
 	"github.com/WinTone01/nabiz/internal/suite"
 	"github.com/WinTone01/nabiz/internal/sysinfo"
+	"github.com/WinTone01/nabiz/internal/util"
 )
 
 type tabID int
@@ -144,10 +147,13 @@ type App struct {
 	AB       *abDoneMsg
 	History  []report.RunSummary
 
-	SuitePick int
-	Running   string
-	Phase     string
-	Progress  float64
+	SuitePick    int
+	Selected     map[string]bool
+	Applicable   map[string]apply.Change
+	HasSnapshots bool
+	Running      string
+	Phase        string
+	Progress     float64
 
 	width, height int
 	cancel        context.CancelFunc
@@ -181,17 +187,21 @@ type model struct {
 	tab      tabID
 	tabIndex int
 
-	showHelp   bool
-	confirming string
-	toast      string
-	toastTill  time.Time
-	quitting   bool
+	showHelp  bool
+	dialog    *modal
+	pending   func() tea.Cmd // what the dialog's primary button will do
+	toast     string
+	toastTill time.Time
+	quitting  bool
 
 	width, height int
 }
 
 // Run starts the interactive interface.
 func Run(cfg config.Config, version string) error {
+	// the zone manager is global because every widget marks itself at render
+	// time and there is exactly one screen
+	zone.NewGlobal()
 	program := tea.NewProgram(newModel(cfg, version),
 		tea.WithAltScreen(), tea.WithMouseCellMotion())
 	_, err := program.Run()
@@ -218,6 +228,11 @@ func newModel(cfg config.Config, version string) *model {
 		app.Baseline = baseline
 	}
 	app.History = report.History(40)
+	app.Selected = map[string]bool{}
+	app.Applicable = map[string]apply.Change{}
+	if snapshots, err := apply.List(); err == nil {
+		app.HasSnapshots = len(snapshots) > 0
+	}
 
 	helpModel := help.New()
 	helpModel.Styles.ShortKey = sAcc
@@ -290,6 +305,9 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.layout()
 		return m, nil
 
+	case tea.MouseMsg:
+		return m.onMouse(msg)
+
 	case tea.KeyMsg:
 		return m.onKey(msg)
 
@@ -340,6 +358,21 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.reloadAll()
 		return m, tea.Batch(waitFor(m.app.msgCh), refreshEnvCmd())
 
+	case applyDoneMsg:
+		m.app.Running = ""
+		switch {
+		case msg.rolledBack:
+			m.flash(i18n.T("apply.rolledback"))
+		case msg.err != "":
+			m.flash(i18n.T("ui.error", msg.err))
+		default:
+			m.flash(i18n.T("apply.ok"))
+		}
+		if snapshots, err := apply.List(); err == nil {
+			m.app.HasSnapshots = len(snapshots) > 0
+		}
+		return m, tea.Batch(waitFor(m.app.msgCh), refreshEnvCmd())
+
 	case toastMsg:
 		m.flash(string(msg))
 		return m, waitFor(m.app.msgCh)
@@ -349,16 +382,15 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m *model) onKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	if m.confirming != "" {
+	if m.dialog != nil {
 		switch msg.String() {
 		case "y", "e", "enter":
-			target := m.confirming
-			m.confirming = ""
-			return m, m.startAB(target)
-		default:
-			m.confirming = ""
+			return m, m.confirmDialog()
+		case "esc", "n", "h", "q":
+			m.dialog, m.pending = nil, nil
 			return m, nil
 		}
+		return m, nil
 	}
 	if m.showHelp {
 		// any key closes the overlay; that is the whole contract
@@ -412,7 +444,7 @@ func (m *model) onKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	case key.Matches(msg, m.keys.AB):
 		if page, ok := m.currentPage().(abPage); ok {
-			m.confirming = page.ABTarget()
+			m.askAB(page.ABTarget())
 			return m, nil
 		}
 	}
@@ -608,15 +640,16 @@ func (m *model) flash(text string) {
 // --- layout ----------------------------------------------------------------
 
 const (
-	headerRows = 1 // brand line
-	tabRows    = 2 // tab bar + separator
-	footerRows = 1
-	framePad   = 2 // rounded border top and bottom
+	headerRows  = 1 // brand line
+	tabRows     = 2 // tab bar + separator
+	toolbarRows = 4 // bordered button row + spacer
+	footerRows  = 1
+	framePad    = 2 // rounded border top and bottom
 )
 
 func (m *model) layout() {
 	bodyWidth := max(m.width-2, 20) // frame border
-	bodyHeight := max(m.height-headerRows-tabRows-footerRows-framePad, 4)
+	bodyHeight := max(m.height-headerRows-tabRows-toolbarRows-footerRows-framePad, 4)
 	m.app.width, m.app.height = bodyWidth, bodyHeight
 	m.prog.Width = min(max(bodyWidth/3, 12), 40)
 	m.help.Width = bodyWidth
@@ -634,14 +667,19 @@ func (m *model) View() string {
 		return sWarn.Render(i18n.T("ui.small_term", 64, 18))
 	}
 	if m.showHelp {
-		return m.viewHelpOverlay()
+		return zone.Scan(m.viewHelpOverlay())
 	}
 	body := m.currentPage().View(m.app)
-	inner := lipgloss.JoinVertical(lipgloss.Left, m.viewTabs(), clip(body, m.app.height))
-	return lipgloss.JoinVertical(lipgloss.Left,
+	inner := lipgloss.JoinVertical(lipgloss.Left,
+		m.viewTabs(), m.viewToolbar(), clip(body, m.app.height))
+	screen := lipgloss.JoinVertical(lipgloss.Left,
 		m.viewHeader(),
 		sFrame.Width(m.app.width).Render(inner),
 		m.viewFooter())
+	if m.dialog != nil {
+		screen = m.dialog.view(m.width, m.height)
+	}
+	return zone.Scan(screen)
 }
 
 // clip pads or truncates a page body so the frame height never jumps between
@@ -689,11 +727,11 @@ func (m *model) viewTabs() string {
 	var rendered []string
 	for _, info := range tabList() {
 		label := info.key + " " + info.label
+		style := sTabOff
 		if info.id == m.tab {
-			rendered = append(rendered, sTabOn.Render(label))
-			continue
+			style = sTabOn
 		}
-		rendered = append(rendered, sTabOff.Render(label))
+		rendered = append(rendered, zone.Mark(tabZone(info.id), style.Render(label)))
 	}
 	row := lipgloss.JoinHorizontal(lipgloss.Bottom, rendered...)
 	if lipgloss.Width(row) > m.app.width {
@@ -704,7 +742,7 @@ func (m *model) viewTabs() string {
 			if info.id == m.tab {
 				style = sTabOn
 			}
-			rendered = append(rendered, style.Render(info.key))
+			rendered = append(rendered, zone.Mark(tabZone(info.id), style.Render(info.key)))
 		}
 		row = lipgloss.JoinHorizontal(lipgloss.Bottom, rendered...)
 	}
@@ -721,8 +759,6 @@ func (m *model) viewFooter() string {
 
 func (m *model) viewStatus() string {
 	switch {
-	case m.confirming != "":
-		return sAcc.Bold(true).Render(i18n.T("ui.confirm_ab", m.confirming))
 	case m.toast != "" && time.Now().Before(m.toastTill):
 		return sAcc.Bold(true).Render(m.toast)
 	case m.app.Running != "":
@@ -747,4 +783,255 @@ func (m *model) viewHelpOverlay() string {
 		sFaint.Render(i18n.T("ui.any_key")))
 	box := sOverlay.Render(content)
 	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, box)
+}
+
+// --- mouse ------------------------------------------------------------------
+
+func tabZone(id tabID) string { return fmt.Sprintf("tab:%d", id) }
+
+const (
+	zoneRun      = "tb:run"
+	zoneStop     = "tb:stop"
+	zoneExport   = "tb:export"
+	zoneBaseline = "tb:baseline"
+	zoneAB       = "tb:ab"
+	zoneLang     = "tb:lang"
+	zoneHelp     = "tb:help"
+	zoneQuit     = "tb:quit"
+	zoneDialogOK = "dlg:ok"
+	zoneDialogNo = "dlg:cancel"
+
+	zoneApply      = "adv:apply"
+	zoneRollback   = "adv:rollback"
+	zoneSelectSafe = "adv:selectsafe"
+	zoneClearSel   = "adv:clear"
+)
+
+// viewToolbar is the row of real buttons. Everything here also has a key, but
+// the point of the row is that none of them have to be remembered.
+func (m *model) viewToolbar() string {
+	running := m.app.Running != ""
+	_, canAB := m.currentPage().(abPage)
+	_, canRun := m.currentPage().(runnablePage)
+
+	buttons := []string{
+		button(zoneRun, "▶ "+i18n.T("key.run"), btnPrimary, canRun && !running),
+		button(zoneStop, "■ "+i18n.T("key.stop"), btnDanger, running),
+		button(zoneExport, "⭳ "+i18n.T("key.export"), btnGhost, m.app.LastRun() != nil),
+		button(zoneBaseline, "◎ "+i18n.T("key.baseline"), btnGhost, m.app.LastRun() != nil),
+	}
+	if canAB {
+		buttons = append(buttons, button(zoneAB, "⇄ "+i18n.T("key.ab"), btnGhost, !running))
+	}
+	buttons = append(buttons,
+		button(zoneLang, "🌐 "+strings.ToUpper(string(i18n.Current())), btnGhost, true),
+		button(zoneHelp, "? "+i18n.T("key.help"), btnGhost, true),
+		button(zoneQuit, "✕ "+i18n.T("key.quit"), btnGhost, true))
+	return toolbar(buttons...) + "\n"
+}
+
+func (m *model) onMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
+	if m.dialog != nil {
+		if clicked(msg, zoneDialogOK) {
+			return m, m.confirmDialog()
+		}
+		if clicked(msg, zoneDialogNo) {
+			m.dialog, m.pending = nil, nil
+		}
+		return m, nil
+	}
+	if m.showHelp {
+		if isPress(msg) {
+			m.showHelp = false
+		}
+		return m, nil
+	}
+
+	if isPress(msg) {
+		for index, info := range tabList() {
+			if clicked(msg, tabZone(info.id)) {
+				m.gotoTab(index)
+				return m, nil
+			}
+		}
+		switch {
+		case clicked(msg, zoneRun):
+			return m, m.actionRun()
+		case clicked(msg, zoneStop):
+			if m.app.cancel != nil {
+				m.app.cancel()
+				m.flash(i18n.T("ui.cancelled"))
+			}
+			return m, nil
+		case clicked(msg, zoneExport):
+			m.export()
+			return m, nil
+		case clicked(msg, zoneBaseline):
+			m.pinBaseline()
+			return m, nil
+		case clicked(msg, zoneAB):
+			if page, ok := m.currentPage().(abPage); ok {
+				m.askAB(page.ABTarget())
+			}
+			return m, nil
+		case clicked(msg, zoneLang):
+			return m, m.switchLanguage()
+		case clicked(msg, zoneHelp):
+			m.showHelp = true
+			return m, nil
+		case clicked(msg, zoneApply):
+			m.askApply()
+			return m, nil
+		case clicked(msg, zoneRollback):
+			m.askRollback()
+			return m, nil
+		case clicked(msg, zoneSelectSafe):
+			for id, change := range m.app.Applicable {
+				m.app.Selected[id] = change.Risk != apply.RiskLink
+			}
+			m.reloadAll()
+			return m, nil
+		case clicked(msg, zoneClearSel):
+			m.app.Selected = map[string]bool{}
+			m.reloadAll()
+			return m, nil
+		case clicked(msg, zoneQuit):
+			m.quitting = true
+			if m.app.cancel != nil {
+				m.app.cancel()
+			}
+			if m.app.Watcher != nil {
+				m.app.Watcher.Stop()
+			}
+			return m, tea.Quit
+		}
+	}
+	return m, m.currentPage().Update(m.app, msg)
+}
+
+// --- dialogs ------------------------------------------------------------------
+
+// ask puts a modal on screen and remembers what the primary button does.
+func (m *model) ask(title, body, okLabel string, kind int, action func() tea.Cmd) {
+	m.dialog = &modal{
+		title: title,
+		body:  body,
+		buttons: []modalButton{
+			{id: zoneDialogOK, label: okLabel, kind: kind},
+			{id: zoneDialogNo, label: i18n.T("ui.cancel"), kind: btnGhost},
+		},
+	}
+	m.pending = action
+}
+
+func (m *model) confirmDialog() tea.Cmd {
+	action := m.pending
+	m.dialog, m.pending = nil, nil
+	if action == nil {
+		return nil
+	}
+	return action()
+}
+
+func (m *model) askAB(target string) {
+	if target == "" {
+		return
+	}
+	m.ask(i18n.T("key.ab"), i18n.T("ui.confirm_ab", target),
+		i18n.T("ui.start"), btnPrimary, func() tea.Cmd { return m.startAB(target) })
+}
+
+// --- applying advice from the interface -------------------------------------
+
+type applyDoneMsg struct {
+	rolledBack bool
+	err        string
+	snapshot   string
+}
+
+// askApply shows exactly what is about to happen before anything runs. The
+// dialog names the snapshot directory, because the promise being made is that
+// the change is undoable and the user should be able to see where the undo is.
+func (m *model) askApply() {
+	var selected []apply.Change
+	for id, on := range m.app.Selected {
+		if !on {
+			continue
+		}
+		if change, ok := m.app.Applicable[id]; ok {
+			selected = append(selected, change)
+		}
+	}
+	if len(selected) == 0 {
+		return
+	}
+	if !util.IsRoot() && util.Which("pkexec") == "" {
+		m.flash(i18n.T("apply.needs_pkexec"))
+		return
+	}
+	snapshot, err := apply.Prepare(selected)
+	if err != nil {
+		m.flash(i18n.T("ui.error", err.Error()))
+		return
+	}
+	var names []string
+	for _, change := range selected {
+		names = append(names, "• "+change.ID+" — "+change.Title)
+	}
+	body := i18n.T("apply.dialog.body",
+		strings.Join(names, "\n")+"\n\n"+sFaint.Render(snapshot.Dir))
+	m.ask(i18n.T("apply.dialog.title", len(selected)), body,
+		i18n.T("ui.apply"), btnSuccess, func() tea.Cmd { return m.runApply(snapshot) })
+}
+
+func (m *model) runApply(snapshot *apply.Snapshot) tea.Cmd {
+	m.app.Running = i18n.T("apply.running")
+	m.app.Progress = 0
+	ctx, cancel := context.WithCancel(context.Background())
+	m.app.cancel = cancel
+	ch := m.app.msgCh
+	go func() {
+		defer cancel()
+		outcome := apply.Apply(ctx, snapshot, true)
+		message := applyDoneMsg{rolledBack: outcome.RolledBack, snapshot: snapshot.Dir}
+		if outcome.Err != nil {
+			message.err = outcome.Err.Error()
+		}
+		ch <- message
+	}()
+	return waitFor(m.app.msgCh)
+}
+
+func (m *model) askRollback() {
+	snapshots, err := apply.List()
+	if err != nil || len(snapshots) == 0 {
+		m.flash(i18n.T("apply.nosnapshots"))
+		return
+	}
+	latest := snapshots[len(snapshots)-1]
+	var names []string
+	for _, change := range latest.Changes {
+		names = append(names, "• "+change.ID)
+	}
+	body := i18n.T("apply.dialog.rollback",
+		strings.Join(names, "\n")+"\n\n"+sFaint.Render(latest.Dir))
+	m.ask(i18n.T("apply.rollback"), body, i18n.T("apply.rollback"), btnDanger,
+		func() tea.Cmd { return m.runRollback(latest.Dir) })
+}
+
+func (m *model) runRollback(dir string) tea.Cmd {
+	m.app.Running = i18n.T("apply.running")
+	ctx, cancel := context.WithCancel(context.Background())
+	m.app.cancel = cancel
+	ch := m.app.msgCh
+	go func() {
+		defer cancel()
+		_, err := apply.Rollback(ctx, dir)
+		message := applyDoneMsg{snapshot: dir}
+		if err != nil {
+			message.err = err.Error()
+		}
+		ch <- message
+	}()
+	return waitFor(m.app.msgCh)
 }
