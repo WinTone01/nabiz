@@ -1,0 +1,10 @@
+# build output
+/nabiz
+/dist/
+
+# the superseded Python prototype, kept locally for reference
+/legacy/
+
+# editor and OS noise
+.DS_Store
+*.swp
