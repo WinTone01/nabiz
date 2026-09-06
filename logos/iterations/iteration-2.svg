@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 512" role="img" aria-label="Nabız">
+  <g id="icon" transform="translate(96 112)">
+    <rect width="288" height="288" rx="64" fill="#1c1c28"/>
+    <rect x="5" y="5" width="278" height="278" rx="59" fill="none" stroke="#3b3b52" stroke-width="10"/>
+    <line x1="22" y1="254" x2="266" y2="254" stroke="#3f3f58" stroke-width="6" stroke-linecap="round"/>
+    <g id="trace">
+      <rect x="22" y="182" width="36" height="58" rx="8" fill="#61d4ec"/>
+      <rect x="74" y="168" width="36" height="72" rx="8" fill="#61d4ec"/>
+      <rect x="126" y="72" width="36" height="168" rx="8" fill="#b79cff"/>
+      <rect x="178" y="218" width="36" height="22" rx="8" fill="#ff7378"/>
+      <rect x="230" y="178" width="36" height="62" rx="8" fill="#61d4ec"/>
+    </g>
+  </g>
+  <g id="wordmark">
+    <text x="440" y="282" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace"
+          font-size="132" font-weight="700" letter-spacing="-2" fill="#8b7cf0">Nabız</text>
+  </g>
+  <g id="tagline">
+    <text x="446" y="336" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace"
+          font-size="22" fill="#7a7a95">internet stability, all the way down</text>
+  </g>
+</svg>

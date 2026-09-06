@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 288 288" role="img" aria-label="Nabız">
+  <g id="icon">
+    <path d="M28 104 H104 l18 -42 16 62 14 -20 H260" fill="none" stroke="#16b3d4"
+          stroke-width="21" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M28 206 H92" fill="none" stroke="#8b7cf0" stroke-width="21" stroke-linecap="round"/>
+    <path d="M132 206 H168" fill="none" stroke="#ff7378" stroke-width="21" stroke-linecap="round"/>
+    <path d="M208 206 H260" fill="none" stroke="#8b7cf0" stroke-width="21" stroke-linecap="round"/>
+  </g>
+</svg>

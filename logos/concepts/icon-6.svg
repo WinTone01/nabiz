@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 288 288" role="img" aria-label="Nabız">
+  <g id="icon">
+    <rect x="34" y="70" width="66" height="148" rx="10" fill="#8b7cf0"/>
+    <path d="M100 144 H140 l20 -60 18 104 16 -44 H262" fill="none" stroke="#16b3d4"
+          stroke-width="20" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+</svg>

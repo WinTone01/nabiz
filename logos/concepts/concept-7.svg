@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 512" role="img" aria-label="Nabız">
+  <g id="icon" transform="translate(96 112)">
+    <g id="cells">
+      <rect x="47" y="27" width="34" height="34" rx="6" fill="#8b7cf0"/>
+      <rect x="207" y="27" width="34" height="34" rx="6" fill="#8b7cf0"/>
+      <rect x="47" y="67" width="34" height="34" rx="6" fill="#8b7cf0"/>
+      <rect x="87" y="67" width="34" height="34" rx="6" fill="#16b3d4"/>
+      <rect x="207" y="67" width="34" height="34" rx="6" fill="#8b7cf0"/>
+      <rect x="47" y="107" width="34" height="34" rx="6" fill="#8b7cf0"/>
+      <rect x="87" y="107" width="34" height="34" rx="6" fill="#8b7cf0"/>
+      <rect x="127" y="107" width="34" height="34" rx="6" fill="#ff7378"/>
+      <rect x="207" y="107" width="34" height="34" rx="6" fill="#8b7cf0"/>
+      <rect x="47" y="147" width="34" height="34" rx="6" fill="#8b7cf0"/>
+      <rect x="127" y="147" width="34" height="34" rx="6" fill="#16b3d4"/>
+      <rect x="167" y="147" width="34" height="34" rx="6" fill="#16b3d4"/>
+      <rect x="207" y="147" width="34" height="34" rx="6" fill="#8b7cf0"/>
+      <rect x="47" y="187" width="34" height="34" rx="6" fill="#8b7cf0"/>
+      <rect x="167" y="187" width="34" height="34" rx="6" fill="#16b3d4"/>
+      <rect x="207" y="187" width="34" height="34" rx="6" fill="#8b7cf0"/>
+      <rect x="47" y="227" width="34" height="34" rx="6" fill="#8b7cf0"/>
+      <rect x="207" y="227" width="34" height="34" rx="6" fill="#8b7cf0"/>
+    </g>
+  </g>
+  <g id="wordmark">
+    <text x="440" y="300" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace"
+          font-size="132" font-weight="700" letter-spacing="-2" fill="#8b7cf0">Nabız</text>
+  </g>
+</svg>

@@ -1,43 +1,31 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 430" width="900" height="430" role="img" aria-label="What Nabız measures, layer by layer">
-  <style>
-    .t  { font-family: ui-monospace,SFMono-Regular,Menlo,monospace; }
-    .h  { font-size: 15px; font-weight: 700; }
-    .b  { font-size: 12.5px; fill: #8b8ba4; }
-    .n  { font-size: 11px; fill: #6f6f82; }
-    .box{ fill: none; stroke-width: 1.5; rx: 10; }
-  </style>
-
-  <text class="t h" x="24" y="30" fill="#61d4ec">What it measures — and where the answer comes from</text>
-
-  <!-- layer 5 -->
-  <rect class="box" x="24" y="52" width="852" height="62" stroke="#b79cff"/>
-  <text class="t h" x="44" y="78" fill="#b79cff">Reachability</text>
-  <text class="t b" x="44" y="98">TLS ClientHello · whole / split at record / split across SNI · alternate SNI · QUIC version negotiation</text>
-  <text class="t n" x="770" y="78">userspace</text>
-
-  <!-- layer 4 -->
-  <rect class="box" x="24" y="124" width="852" height="62" stroke="#61d4ec"/>
-  <text class="t h" x="44" y="150" fill="#61d4ec">Name resolution</text>
-  <text class="t b" x="44" y="170">plain UDP · TCP · DoT 853 · DoH 443 — interception, injection, NXDOMAIN hijack, DNSSEC, EDNS0, fallback leak</text>
-  <text class="t n" x="770" y="150">wire format</text>
-
-  <!-- layer 3 -->
-  <rect class="box" x="24" y="196" width="852" height="62" stroke="#5fdf90"/>
-  <text class="t h" x="44" y="222" fill="#5fdf90">Transport</text>
-  <text class="t b" x="44" y="242">per-socket tcp_info: rtt · min_rtt · cwnd · ssthresh · retransmits · delivery rate · congestion control</text>
-  <text class="t n" x="720" y="222">netlink INET_DIAG</text>
-
-  <!-- layer 2 -->
-  <rect class="box" x="24" y="268" width="852" height="62" stroke="#f3c552"/>
-  <text class="t h" x="44" y="294" fill="#f3c552">Path</text>
-  <text class="t b" x="44" y="314">per-hop loss and latency · real path MTU by DF binary search · PMTU black holes</text>
-  <text class="t n" x="716" y="294">ICMP + IP_RECVERR</text>
-
-  <!-- layer 1 -->
-  <rect class="box" x="24" y="340" width="852" height="66" stroke="#ff7378"/>
-  <text class="t h" x="44" y="366" fill="#ff7378">Physical link</text>
-  <text class="t b" x="44" y="386">speed · duplex · MTU · carrier_up_count · rx_crc_errors · EEE · qdisc — and every link-down in the kernel log</text>
-  <text class="t n" x="744" y="366">sysfs + wtmp</text>
-
-  <text class="t n" x="24" y="424">Nothing above needs root. Only the NFQUEUE counters do — and when they cannot be read, the tool says so.</text>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 590" role="img" aria-label="What Nabız measures, layer by layer">
+  <rect width="1200" height="590" rx="22" fill="#14141c"/>
+  <text x="40" y="58" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="21" fill="#61d4ec" font-weight="700">What it measures — and where the answer comes from</text>
+  <text x="40" y="84" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="14" fill="#7a7a95">five layers, top to bottom — every answer says which kernel interface it came from</text>
+  <rect x="40" y="112" width="1120" height="74" rx="14" fill="#1e1e2a" stroke="#33334a" stroke-width="2"/>
+  <rect x="43" y="126" width="6" height="46" rx="3" fill="#b79cff"/>
+  <text x="70" y="144" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="17" fill="#b79cff" font-weight="700">Reachability</text>
+  <text x="1140" y="144" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13" fill="#7a7a95" text-anchor="end">userspace</text>
+  <text x="70" y="169" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="15" fill="#b8b8cc">TLS ClientHello · whole / split at record / split across SNI · alternate SNI · QUIC version negotiation</text>
+  <rect x="40" y="200" width="1120" height="74" rx="14" fill="#1e1e2a" stroke="#33334a" stroke-width="2"/>
+  <rect x="43" y="214" width="6" height="46" rx="3" fill="#a6c0f7"/>
+  <text x="70" y="232" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="17" fill="#a6c0f7" font-weight="700">Name resolution</text>
+  <text x="1140" y="232" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13" fill="#7a7a95" text-anchor="end">wire format</text>
+  <text x="70" y="257" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="15" fill="#b8b8cc">plain UDP · TCP · DoT 853 · DoH 443 — interception, injection, NXDOMAIN hijack, DNSSEC, EDNS0, fallback leak</text>
+  <rect x="40" y="288" width="1120" height="74" rx="14" fill="#1e1e2a" stroke="#33334a" stroke-width="2"/>
+  <rect x="43" y="302" width="6" height="46" rx="3" fill="#94c9ef"/>
+  <text x="70" y="320" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="17" fill="#94c9ef" font-weight="700">Transport</text>
+  <text x="1140" y="320" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13" fill="#7a7a95" text-anchor="end">netlink INET_DIAG</text>
+  <text x="70" y="345" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="15" fill="#b8b8cc">per-socket tcp_info: rtt · min_rtt · cwnd · ssthresh · retransmits · delivery rate · congestion control</text>
+  <rect x="40" y="376" width="1120" height="74" rx="14" fill="#1e1e2a" stroke="#33334a" stroke-width="2"/>
+  <rect x="43" y="390" width="6" height="46" rx="3" fill="#7ccfe8"/>
+  <text x="70" y="408" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="17" fill="#7ccfe8" font-weight="700">Path</text>
+  <text x="1140" y="408" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13" fill="#7a7a95" text-anchor="end">ICMP + IP_RECVERR</text>
+  <text x="70" y="433" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="15" fill="#b8b8cc">per-hop loss and latency · real path MTU by DF binary search · PMTU black holes</text>
+  <rect x="40" y="464" width="1120" height="74" rx="14" fill="#1e1e2a" stroke="#33334a" stroke-width="2"/>
+  <rect x="43" y="478" width="6" height="46" rx="3" fill="#61d4ec"/>
+  <text x="70" y="496" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="17" fill="#61d4ec" font-weight="700">Physical link</text>
+  <text x="1140" y="496" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13" fill="#7a7a95" text-anchor="end">sysfs + wtmp</text>
+  <text x="70" y="521" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="15" fill="#b8b8cc">speed · duplex · MTU · carrier_up_count · rx_crc_errors · EEE · qdisc — and every link-down in the kernel log</text>
+  <text x="40" y="578" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="14" fill="#7a7a95">Nothing above needs root. Only the NFQUEUE counters do — and when they cannot be read, the tool says so.</text>
 </svg>

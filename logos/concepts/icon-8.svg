@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 288 288" role="img" aria-label="Nabız">
+  <defs>
+    <mask id="cut8">
+      <rect width="288" height="288" fill="#ffffff"/>
+      <path d="M30 168 H96 l22 -74 20 118 18 -44 H188" fill="none" stroke="#000000"
+            stroke-width="28" stroke-linecap="round" stroke-linejoin="round"/>
+      <circle cx="234" cy="168" r="19" fill="#000000"/>
+    </mask>
+  </defs>
+  <g id="icon">
+    <rect width="288" height="288" rx="64" fill="#8b7cf0" mask="url(#cut8)"/>
+    <circle cx="234" cy="168" r="12" fill="#ff7378"/>
+  </g>
+</svg>

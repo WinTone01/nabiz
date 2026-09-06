@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 512" role="img" aria-label="Nabız">
+  <g id="icon" transform="translate(96 112)">
+    <path d="M28 104 H104 l18 -42 16 62 14 -20 H260" fill="none" stroke="#16b3d4"
+          stroke-width="21" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M28 206 H92" fill="none" stroke="#8b7cf0" stroke-width="21" stroke-linecap="round"/>
+    <path d="M132 206 H168" fill="none" stroke="#ff7378" stroke-width="21" stroke-linecap="round"/>
+    <path d="M208 206 H260" fill="none" stroke="#8b7cf0" stroke-width="21" stroke-linecap="round"/>
+  </g>
+  <g id="wordmark">
+    <text x="440" y="300" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace"
+          font-size="132" font-weight="700" letter-spacing="-2" fill="#8b7cf0">Nabız</text>
+  </g>
+</svg>

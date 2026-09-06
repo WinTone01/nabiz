@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 288 288" role="img" aria-label="Nabız">
+  <g id="icon">
+    <g id="layers">
+      <rect x="32" y="44"  width="100" height="46" rx="14" fill="#b79cff"/>
+      <rect x="164" y="44"  width="92" height="46" rx="14" fill="#b79cff"/>
+      <rect x="32" y="104" width="100" height="46" rx="14" fill="#9ac2f5"/>
+      <rect x="164" y="104" width="92" height="46" rx="14" fill="#9ac2f5"/>
+      <rect x="32" y="164" width="100" height="46" rx="14" fill="#7ccfe8"/>
+      <rect x="164" y="164" width="92" height="46" rx="14" fill="#ff7378"/>
+      <rect x="32" y="224" width="100" height="46" rx="14" fill="#61d4ec"/>
+      <rect x="164" y="224" width="92" height="46" rx="14" fill="#61d4ec"/>
+    </g>
+    <g id="probe">
+      <circle cx="148" cy="18" r="13" fill="#8b7cf0"/>
+      <line x1="148" y1="34" x2="148" y2="196" stroke="#8b7cf0" stroke-width="7"
+            stroke-linecap="round" stroke-dasharray="3 15"/>
+    </g>
+  </g>
+</svg>

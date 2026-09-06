@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 288 288" role="img" aria-label="Nabız">
+  <g id="icon">
+    <g id="cells">
+      <rect x="47" y="27" width="34" height="34" rx="6" fill="#8b7cf0"/>
+      <rect x="207" y="27" width="34" height="34" rx="6" fill="#8b7cf0"/>
+      <rect x="47" y="67" width="34" height="34" rx="6" fill="#8b7cf0"/>
+      <rect x="87" y="67" width="34" height="34" rx="6" fill="#16b3d4"/>
+      <rect x="207" y="67" width="34" height="34" rx="6" fill="#8b7cf0"/>
+      <rect x="47" y="107" width="34" height="34" rx="6" fill="#8b7cf0"/>
+      <rect x="87" y="107" width="34" height="34" rx="6" fill="#8b7cf0"/>
+      <rect x="127" y="107" width="34" height="34" rx="6" fill="#ff7378"/>
+      <rect x="207" y="107" width="34" height="34" rx="6" fill="#8b7cf0"/>
+      <rect x="47" y="147" width="34" height="34" rx="6" fill="#8b7cf0"/>
+      <rect x="127" y="147" width="34" height="34" rx="6" fill="#16b3d4"/>
+      <rect x="167" y="147" width="34" height="34" rx="6" fill="#16b3d4"/>
+      <rect x="207" y="147" width="34" height="34" rx="6" fill="#8b7cf0"/>
+      <rect x="47" y="187" width="34" height="34" rx="6" fill="#8b7cf0"/>
+      <rect x="167" y="187" width="34" height="34" rx="6" fill="#16b3d4"/>
+      <rect x="207" y="187" width="34" height="34" rx="6" fill="#8b7cf0"/>
+      <rect x="47" y="227" width="34" height="34" rx="6" fill="#8b7cf0"/>
+      <rect x="207" y="227" width="34" height="34" rx="6" fill="#8b7cf0"/>
+    </g>
+  </g>
+</svg>

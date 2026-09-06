@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 288 288" role="img" aria-label="Nabız">
+  <g id="icon">
+    <rect width="288" height="288" rx="64" fill="#1c1c28"/>
+    <rect x="5" y="5" width="278" height="278" rx="59" fill="none" stroke="#3b3b52" stroke-width="10"/>
+    <line x1="17" y1="246" x2="271" y2="246" stroke="#3f3f58" stroke-width="5" stroke-linecap="round"/>
+    <g id="trace">
+      <rect x="17" y="186" width="26" height="46" rx="6" fill="#61d4ec"/>
+      <rect x="55" y="174" width="26" height="58" rx="6" fill="#61d4ec"/>
+      <rect x="93" y="182" width="26" height="50" rx="6" fill="#61d4ec"/>
+      <rect x="131" y="80" width="26" height="152" rx="6" fill="#b79cff"/>
+      <rect x="169" y="178" width="26" height="54" rx="6" fill="#61d4ec"/>
+      <rect x="207" y="222" width="26" height="10" rx="6" fill="#ff7378"/>
+      <rect x="245" y="182" width="26" height="50" rx="6" fill="#61d4ec"/>
+    </g>
+  </g>
+</svg>

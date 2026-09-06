@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 512" role="img" aria-label="Nabız">
+  <g id="icon" transform="translate(96 112)">
+    <path d="M26 190 H74 V116 H122 V190 H166 V64 H214 V190 H262" fill="none" stroke="#8b7cf0"
+          stroke-width="22" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="190" cy="64" r="15" fill="#16b3d4"/>
+  </g>
+  <g id="wordmark">
+    <text x="440" y="300" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace"
+          font-size="132" font-weight="700" letter-spacing="-2" fill="#8b7cf0">Nabız</text>
+  </g>
+</svg>

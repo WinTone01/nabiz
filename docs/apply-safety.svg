@@ -1,69 +1,43 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 400" width="900" height="400" role="img" aria-label="How applying a change stays reversible">
-  <style>
-    .t { font-family: ui-monospace,SFMono-Regular,Menlo,monospace; }
-    .h { font-size: 15px; font-weight: 700; }
-    .n { font-size: 13px; font-weight: 700; }
-    .b { font-size: 12px; fill: #8b8ba4; }
-    .s { font-size: 11px; fill: #6f6f82; }
-  </style>
-  <defs>
-    <marker id="ga" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
-      <path d="M0 0 L10 5 L0 10 z" fill="#4a4a66"/>
-    </marker>
-    <marker id="gg" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
-      <path d="M0 0 L10 5 L0 10 z" fill="#5fdf90"/>
-    </marker>
-    <marker id="gr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
-      <path d="M0 0 L10 5 L0 10 z" fill="#ff7378"/>
-    </marker>
-  </defs>
-
-  <text class="t h" x="24" y="30" fill="#61d4ec">Applying a change without betting your connection on it</text>
-
-  <!-- four steps -->
-  <rect x="24"  y="54" width="180" height="88" rx="10" fill="none" stroke="#b79cff" stroke-width="1.5"/>
-  <text class="t n" x="44" y="80" fill="#b79cff">1 · Snapshot</text>
-  <text class="t b" x="44" y="104">files copied,</text>
-  <text class="t b" x="44" y="124">values captured</text>
-
-  <rect x="232" y="54" width="180" height="88" rx="10" fill="none" stroke="#b79cff" stroke-width="1.5"/>
-  <text class="t n" x="252" y="80" fill="#b79cff">2 · Undo script</text>
-  <text class="t b" x="252" y="104">plain bash, from</text>
-  <text class="t b" x="252" y="124">your real values</text>
-
-  <rect x="440" y="54" width="180" height="88" rx="10" fill="none" stroke="#f3c552" stroke-width="1.5"/>
-  <text class="t n" x="460" y="80" fill="#f3c552">3 · Apply</text>
-  <text class="t b" x="460" y="104">one privileged</text>
-  <text class="t b" x="460" y="124">invocation</text>
-
-  <rect x="648" y="54" width="180" height="88" rx="10" fill="none" stroke="#61d4ec" stroke-width="1.5"/>
-  <text class="t n" x="668" y="80" fill="#61d4ec">4 · Verify</text>
-  <text class="t b" x="668" y="104">ping + DNS + TLS</text>
-  <text class="t b" x="668" y="124">all must pass</text>
-
-  <g stroke="#4a4a66" stroke-width="1.5" fill="none">
-    <path d="M204 98 H226" marker-end="url(#ga)"/>
-    <path d="M412 98 H434" marker-end="url(#ga)"/>
-    <path d="M620 98 H642" marker-end="url(#ga)"/>
-  </g>
-
-  <!-- one junction under step 4, then two clearly separated outcomes -->
-  <line x1="738" y1="142" x2="738" y2="176" stroke="#4a4a66" stroke-width="1.5"/>
-  <line x1="330" y1="176" x2="738" y2="176" stroke="#4a4a66" stroke-width="1.5"/>
-  <path d="M645 176 V214" stroke="#5fdf90" stroke-width="1.5" fill="none" marker-end="url(#gg)"/>
-  <path d="M330 176 V214" stroke="#ff7378" stroke-width="1.5" fill="none" marker-end="url(#gr)"/>
-  <text class="t s" x="654" y="200" fill="#5fdf90">pass</text>
-  <text class="t s" x="292" y="200" fill="#ff7378">fail</text>
-
-  <rect x="180" y="222" width="300" height="48" rx="10" fill="none" stroke="#ff7378" stroke-width="1.5"/>
-  <text class="t n" x="202" y="252" fill="#ff7378">rolled back automatically</text>
-
-  <rect x="520" y="222" width="250" height="48" rx="10" fill="none" stroke="#5fdf90" stroke-width="1.5"/>
-  <text class="t n" x="542" y="252" fill="#5fdf90">kept</text>
-
-  <!-- notes -->
-  <rect x="24" y="292" width="852" height="98" rx="10" fill="none" stroke="#32324a" stroke-width="1.5"/>
-  <text class="t b" x="46" y="320">The undo script works without nabiz installed — it is just bash and your old values.</text>
-  <text class="t b" x="46" y="344">One password prompt per batch, so a cancelled prompt leaves nothing half-applied.</text>
-  <text class="t b" x="46" y="368">Changes that can renegotiate the link are excluded unless you ask for them.</text>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 500" role="img" aria-label="How applying a change stays reversible">
+  <rect width="1200" height="500" rx="22" fill="#14141c"/>
+  <text x="40" y="58" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="21" fill="#61d4ec" font-weight="700">Applying a change without betting your connection on it</text>
+  <text x="40" y="84" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="14" fill="#7a7a95">every step is written to disk before the next one runs</text>
+  <rect x="40" y="110" width="250" height="112" rx="14" fill="#1e1e2a" stroke="#33334a" stroke-width="2"/>
+  <text x="64" y="146" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="16" fill="#b79cff" font-weight="700">1 · Snapshot</text>
+  <text x="64" y="178" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="14" fill="#b8b8cc">files copied,</text>
+  <text x="64" y="200" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="14" fill="#b8b8cc">values captured</text>
+  <line x1="298" y1="166" x2="322" y2="166" stroke="#7a7a95" stroke-width="2.5" stroke-linecap="round"/>
+  <path d="M322 166 l-9 -5.5 v11 z" fill="#7a7a95"/>
+  <rect x="330" y="110" width="250" height="112" rx="14" fill="#1e1e2a" stroke="#33334a" stroke-width="2"/>
+  <text x="354" y="146" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="16" fill="#a6c0f7" font-weight="700">2 · Undo script</text>
+  <text x="354" y="178" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="14" fill="#b8b8cc">plain bash, from</text>
+  <text x="354" y="200" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="14" fill="#b8b8cc">your real values</text>
+  <line x1="588" y1="166" x2="612" y2="166" stroke="#7a7a95" stroke-width="2.5" stroke-linecap="round"/>
+  <path d="M612 166 l-9 -5.5 v11 z" fill="#7a7a95"/>
+  <rect x="620" y="110" width="250" height="112" rx="14" fill="#1e1e2a" stroke="#33334a" stroke-width="2"/>
+  <text x="644" y="146" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="16" fill="#7ccfe8" font-weight="700">3 · Apply</text>
+  <text x="644" y="178" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="14" fill="#b8b8cc">one privileged</text>
+  <text x="644" y="200" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="14" fill="#b8b8cc">invocation</text>
+  <line x1="878" y1="166" x2="902" y2="166" stroke="#7a7a95" stroke-width="2.5" stroke-linecap="round"/>
+  <path d="M902 166 l-9 -5.5 v11 z" fill="#7a7a95"/>
+  <rect x="910" y="110" width="250" height="112" rx="14" fill="#1e1e2a" stroke="#33334a" stroke-width="2"/>
+  <text x="934" y="146" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="16" fill="#61d4ec" font-weight="700">4 · Verify</text>
+  <text x="934" y="178" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="14" fill="#b8b8cc">ping + DNS + TLS</text>
+  <text x="934" y="200" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="14" fill="#b8b8cc">all must pass</text>
+  <line x1="1035" y1="222" x2="1035" y2="262" stroke="#7a7a95" stroke-width="2.5" stroke-linecap="round"/>
+  <line x1="300" y1="262" x2="1035" y2="262" stroke="#7a7a95" stroke-width="2.5" stroke-linecap="round"/>
+  <line x1="300" y1="262" x2="300" y2="296" stroke="#7a7a95" stroke-width="2.5" stroke-linecap="round"/>
+  <path d="M300 296 l-5.5 -9 h11 z" fill="#7a7a95"/>
+  <line x1="1035" y1="262" x2="1035" y2="296" stroke="#7a7a95" stroke-width="2.5" stroke-linecap="round"/>
+  <path d="M1035 296 l-5.5 -9 h11 z" fill="#7a7a95"/>
+  <text x="314" y="284" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="14" fill="#ff7378">fail</text>
+  <text x="1049" y="284" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="14" fill="#5fdf90">pass</text>
+  <rect x="150" y="300" width="300" height="56" rx="14" fill="#1e1e2a" stroke="#ff7378" stroke-width="2"/>
+  <text x="300" y="335" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="16" fill="#ff7378" font-weight="700" text-anchor="middle">rolled back automatically</text>
+  <rect x="885" y="300" width="300" height="56" rx="14" fill="#1e1e2a" stroke="#5fdf90" stroke-width="2"/>
+  <text x="1035" y="335" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="16" fill="#5fdf90" font-weight="700" text-anchor="middle">kept</text>
+  <rect x="40" y="378" width="1120" height="100" rx="14" fill="#1e1e2a" stroke="#33334a" stroke-width="2"/>
+  <text x="70" y="412" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="15" fill="#b8b8cc">The undo script works without nabiz installed — it is just bash and your old values.</text>
+  <text x="70" y="438" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="15" fill="#b8b8cc">One password prompt per batch, so a cancelled prompt leaves nothing half-applied.</text>
+  <text x="70" y="464" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="15" fill="#b8b8cc">A change that leaves a unit it touched in a failed state is rolled back too.</text>
 </svg>

@@ -1,17 +1,17 @@
 <div align="center">
 
-<img src="docs/logo.svg" alt="Nabız" width="700">
+<img src="docs/logo.svg" alt="Nabız" width="620">
 
 **Find *where* your connection breaks, *how long* it lasts, *whose fault* it is —
 and *which change actually helped*.**
 
-[![Go](https://img.shields.io/badge/Go-1.24%2B-00ADD8?logo=go&logoColor=white)](https://go.dev)
-[![Bubble Tea](https://img.shields.io/badge/TUI-Bubble%20Tea-FF62B6)](https://github.com/charmbracelet/bubbletea)
-[![Mouse](https://img.shields.io/badge/mouse-clickable-b79cff)](#the-interface)
-[![Platform](https://img.shields.io/badge/platform-Linux-informational)](#)
-[![No root](https://img.shields.io/badge/root-not%20required-5fdf90)](#no-root-needed)
-[![i18n](https://img.shields.io/badge/i18n-EN%20%C2%B7%20TR-61d4ec)](#language)
-[![License](https://img.shields.io/badge/license-GPLv3-blue)](LICENSE)
+[![Go](https://img.shields.io/badge/Go-1.26%2B-61d4ec?style=flat-square&logo=go&logoColor=white&labelColor=1c1c28)](https://go.dev)
+[![Bubble Tea](https://img.shields.io/badge/TUI-Bubble%20Tea-b79cff?style=flat-square&labelColor=1c1c28)](https://github.com/charmbracelet/bubbletea)
+[![Mouse](https://img.shields.io/badge/mouse-clickable-b79cff?style=flat-square&labelColor=1c1c28)](#the-interface)
+[![No root](https://img.shields.io/badge/root-not%20required-5fdf90?style=flat-square&labelColor=1c1c28)](#no-root-needed)
+[![i18n](https://img.shields.io/badge/i18n-EN%20%C2%B7%20TR-61d4ec?style=flat-square&labelColor=1c1c28)](#language)
+[![Platform](https://img.shields.io/badge/platform-Linux-7a7a95?style=flat-square&labelColor=1c1c28)](#)
+[![License](https://img.shields.io/badge/license-GPLv3-7a7a95?style=flat-square&labelColor=1c1c28)](LICENSE)
 
 </div>
 
@@ -24,6 +24,13 @@ One static binary, no runtime dependencies, no root. It also knows about the two
 things that quietly rewrite your networking behind your back:
 **[bpftune](https://github.com/oracle/bpftune)**, the kernel auto-tuner, and
 **[Unwall](https://github.com/WinTone01/Unwall)** / zapret, the DPI-bypass stack.
+
+```bash
+go install github.com/WinTone01/nabiz/cmd/nabiz@latest
+
+nabiz doctor    # a diagnosis in under a second, without sending a packet
+nabiz           # the full interface
+```
 
 ## The interface
 
@@ -119,7 +126,7 @@ want in the **Advice** screen, press Apply, and confirm:
 ╰──────────────────────────────────────────────────────────────────╯
 ```
 
-**24 of the recommendations carry a script**, so ticking them is enough:
+**25 of the recommendations carry a script**, so ticking them is enough:
 congestion control, MTU probing, slow-start, notsent-lowat, conntrack sizing,
 the default qdisc, cake shaping, NIC offloads, EEE, link advertisement, the
 bpftune buffer ceiling and its tuner override, the allowed congestion-control
@@ -247,7 +254,7 @@ Every recommendation is tied to a number this run measured, and the ordering shi
 with the evidence — a proven kernel regression outranks the cable, and a cable fault
 outranks every kernel tunable.
 
-54 rules across `physical` `queue` `kernel` `bpftune` `dns` `dpi` `isp` `security`
+55 rules across `physical` `queue` `kernel` `bpftune` `dns` `dpi` `isp` `security`
 `application` `method`. Each item carries **why** (with the measured number), **how**
 (runnable commands), **expected gain**, **risk** and **how to revert**.
 

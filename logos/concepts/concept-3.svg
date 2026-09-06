@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 512" role="img" aria-label="Nabız">
+  <g id="icon" transform="translate(96 112)">
+    <g id="layers">
+      <rect x="32" y="44"  width="100" height="46" rx="14" fill="#b79cff"/>
+      <rect x="164" y="44"  width="92" height="46" rx="14" fill="#b79cff"/>
+      <rect x="32" y="104" width="100" height="46" rx="14" fill="#9ac2f5"/>
+      <rect x="164" y="104" width="92" height="46" rx="14" fill="#9ac2f5"/>
+      <rect x="32" y="164" width="100" height="46" rx="14" fill="#7ccfe8"/>
+      <rect x="164" y="164" width="92" height="46" rx="14" fill="#ff7378"/>
+      <rect x="32" y="224" width="100" height="46" rx="14" fill="#61d4ec"/>
+      <rect x="164" y="224" width="92" height="46" rx="14" fill="#61d4ec"/>
+    </g>
+    <g id="probe">
+      <circle cx="148" cy="18" r="13" fill="#8b7cf0"/>
+      <line x1="148" y1="34" x2="148" y2="196" stroke="#8b7cf0" stroke-width="7"
+            stroke-linecap="round" stroke-dasharray="3 15"/>
+    </g>
+  </g>
+  <g id="wordmark">
+    <text x="440" y="282" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace"
+          font-size="132" font-weight="700" letter-spacing="-2" fill="#8b7cf0">Nabız</text>
+  </g>
+  <g id="tagline">
+    <text x="446" y="336" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace"
+          font-size="24" fill="#7a7a95">link · IP · TCP · TLS · DNS</text>
+  </g>
+</svg>

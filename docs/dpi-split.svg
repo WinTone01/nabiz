@@ -1,43 +1,27 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 366" width="900" height="366" role="img" aria-label="Telling block types apart with a split ClientHello">
-  <style>
-    .t { font-family: ui-monospace,SFMono-Regular,Menlo,monospace; }
-    .h { font-size: 15px; font-weight: 700; }
-    .n { font-size: 12.5px; font-weight: 700; }
-    .b { font-size: 12px; fill: #8b8ba4; }
-    .l { font-size: 12px; font-weight: 700; fill: #8b8ba4; }
-    .p { font-size: 11.5px; fill: #6f6f82; }
-  </style>
-  <text class="t h" x="24" y="30" fill="#61d4ec">Same request, three shapes — the failure tells you the block type</text>
-
-  <!-- whole -->
-  <text class="t l" x="24" y="76">whole</text>
-  <rect x="112" y="58" width="252" height="26" rx="5" fill="none" stroke="#8b8ba4" stroke-width="1.5"/>
-  <text class="t p" x="128" y="76">ClientHello · SNI inside</text>
-  <line x1="376" y1="71" x2="470" y2="71" stroke="#4a4a66" stroke-width="1.5" stroke-dasharray="3 4"/>
-  <text class="t n" x="482" y="76" fill="#ff7378">RST / silence</text>
-
-  <!-- split at record header -->
-  <text class="t l" x="24" y="136" fill="#f3c552">split@2</text>
-  <rect x="112" y="118" width="46" height="26" rx="5" fill="none" stroke="#f3c552" stroke-width="1.5"/>
-  <text class="t p" x="124" y="136">hdr</text>
-  <rect x="166" y="118" width="198" height="26" rx="5" fill="none" stroke="#f3c552" stroke-width="1.5"/>
-  <text class="t p" x="180" y="136">rest of the ClientHello</text>
-  <line x1="376" y1="131" x2="470" y2="131" stroke="#4a4a66" stroke-width="1.5" stroke-dasharray="3 4"/>
-  <text class="t n" x="482" y="136" fill="#5fdf90">handshake completes</text>
-
-  <!-- split across the SNI -->
-  <text class="t l" x="24" y="196" fill="#f3c552">split@sni</text>
-  <rect x="112" y="178" width="126" height="26" rx="5" fill="none" stroke="#f3c552" stroke-width="1.5"/>
-  <text class="t p" x="126" y="196">…exam</text>
-  <rect x="246" y="178" width="118" height="26" rx="5" fill="none" stroke="#f3c552" stroke-width="1.5"/>
-  <text class="t p" x="260" y="196">ple.com…</text>
-  <line x1="376" y1="191" x2="470" y2="191" stroke="#4a4a66" stroke-width="1.5" stroke-dasharray="3 4"/>
-  <text class="t n" x="482" y="196" fill="#5fdf90">handshake completes</text>
-
-  <!-- verdict -->
-  <rect x="24" y="230" width="852" height="118" rx="10" fill="none" stroke="#b79cff" stroke-width="1.5"/>
-  <text class="t b" x="46" y="260">Only the split versions get through, so the DPI matches SNI inside a single</text>
-  <text class="t b" x="46" y="284">packet and never reassembles the stream.</text>
-  <text class="t b" x="46" y="314">That is what zapret's <tspan fill="#b79cff" font-weight="700">multisplit</tspan> / <tspan fill="#b79cff" font-weight="700">multidisorder</tspan> strategies address — a hint,</text>
-  <text class="t b" x="46" y="338">not a replacement for blockcheck.</text>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 450" role="img" aria-label="Split ClientHello probing">
+  <rect width="1200" height="450" rx="22" fill="#14141c"/>
+  <text x="40" y="58" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="21" fill="#61d4ec" font-weight="700">Same request, three shapes — the failure tells you the block type</text>
+  <text x="40" y="84" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="14" fill="#7a7a95">one packet, then two, then two cut through the hostname itself</text>
+  <text x="40" y="147" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="15" fill="#b79cff">whole</text>
+  <rect x="190" y="118" width="400" height="46" rx="10" fill="#262636" stroke="#33334a" stroke-width="2"/>
+  <text x="390.0" y="147" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="14" fill="#b8b8cc" text-anchor="middle">ClientHello · SNI inside</text>
+  <line x1="620" y1="141" x2="736" y2="141" stroke="#7a7a95" stroke-width="2" stroke-linecap="round" stroke-dasharray="2 9"/>
+  <text x="756" y="147" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="15" fill="#ff7378" font-weight="700">RST / silence</text>
+  <text x="40" y="223" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="15" fill="#b79cff">split@record</text>
+  <rect x="190" y="194" width="96" height="46" rx="10" fill="#262636" stroke="#33334a" stroke-width="2"/>
+  <text x="238.0" y="223" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="14" fill="#b8b8cc" text-anchor="middle">hdr</text>
+  <rect x="300" y="194" width="290" height="46" rx="10" fill="#262636" stroke="#33334a" stroke-width="2"/>
+  <text x="445.0" y="223" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="14" fill="#b8b8cc" text-anchor="middle">rest of the ClientHello</text>
+  <line x1="620" y1="217" x2="736" y2="217" stroke="#7a7a95" stroke-width="2" stroke-linecap="round" stroke-dasharray="2 9"/>
+  <text x="756" y="223" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="15" fill="#5fdf90" font-weight="700">handshake completes</text>
+  <text x="40" y="299" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="15" fill="#b79cff">split@sni</text>
+  <rect x="190" y="270" width="196" height="46" rx="10" fill="#262636" stroke="#33334a" stroke-width="2"/>
+  <text x="288.0" y="299" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="14" fill="#b8b8cc" text-anchor="middle">…exam</text>
+  <rect x="398" y="270" width="192" height="46" rx="10" fill="#262636" stroke="#33334a" stroke-width="2"/>
+  <text x="494.0" y="299" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="14" fill="#b8b8cc" text-anchor="middle">ple.com…</text>
+  <line x1="620" y1="293" x2="736" y2="293" stroke="#7a7a95" stroke-width="2" stroke-linecap="round" stroke-dasharray="2 9"/>
+  <text x="756" y="299" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="15" fill="#5fdf90" font-weight="700">handshake completes</text>
+  <rect x="40" y="342" width="1120" height="82" rx="14" fill="#1e1e2a" stroke="#33334a" stroke-width="2"/>
+  <text x="70" y="376" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="15" fill="#b8b8cc">Only the split versions get through, so the DPI matches SNI inside a single packet and never</text>
+  <text x="70" y="402" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="15" fill="#b8b8cc">reassembles the stream — what zapret's multisplit / multidisorder strategies address.</text>
 </svg>
