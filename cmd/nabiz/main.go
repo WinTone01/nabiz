@@ -114,6 +114,7 @@ KOMUTLAR
   advice       son çalışmanın önerilerini göster
   history      kayıtlı çalışmaların puan eğilimi
   apply        önerileri yedek alarak ve güvenlik ağıyla uygula
+  sweep        şekillendirme hızını deneyerek bul (cake/SQM)
   rollback     son uygulanan değişiklikleri geri al
   baseline     referans çalışmayı ayarla/göster/temizle
   env          ortam dökümü (arayüz, unwall, bpftune, sysctl, netfilter)
@@ -156,6 +157,7 @@ COMMANDS
   advice       show the advice from the last run
   history      score trend across saved runs
   apply        apply advice with a snapshot and an automatic safety net
+  sweep        find the shaping rate by trying rates and measuring (cake/SQM)
   rollback     undo the last applied batch
   baseline     set / show / clear the reference run
   env          environment dump (link, unwall, bpftune, sysctl, netfilter)
@@ -227,6 +229,8 @@ func run(args []string) error {
 		return cmdBaseline(rest)
 	case "apply":
 		return cmdApply(rest)
+	case "sweep":
+		return cmdSweep(rest)
 	case "rollback":
 		return cmdRollback(rest)
 	case "report":
@@ -1028,6 +1032,81 @@ func metricValue(result suite.Result, metric string) (float64, bool) {
 		return result.Load.Upload.SNMPDelta.RetransPct, true
 	}
 	return 0, false
+}
+
+// cmdSweep finds the shaping rate for this line by trying rates and measuring.
+//
+// Picking that number is the step where SQM is usually abandoned: it belongs to
+// the line rather than to anything the modem advertises, and the only way to
+// find it is to shape, saturate, and watch the latency. Guessing it once is
+// hard; guessing it repeatedly is what makes people give up and leave the link
+// unshaped.
+func cmdSweep(args []string) error {
+	flags := flag.NewFlagSet("sweep", flag.ContinueOnError)
+	steps := flags.Int("steps", 3, "how many rates to try below the measured line speed")
+	keep := flags.Bool("keep", false, "leave the winning rate in force when the sweep ends")
+	if err := flags.Parse(args); err != nil {
+		return err
+	}
+	cfg := config.Load()
+
+	fmt.Println(sTitle.Render(i18n.T("sweep.title")))
+	fmt.Println(sDim.Render(i18n.T("sweep.intro", *steps+1)))
+	fmt.Println()
+
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	printed := false
+	report := func(point suite.SweepPoint) {
+		if !printed {
+			fmt.Printf("  %-12s %9s %9s %7s %9s\n",
+				i18n.T("sweep.col.rate"), i18n.T("sweep.col.down"),
+				i18n.T("sweep.col.up"), i18n.T("sweep.col.grade"), i18n.T("sweep.col.bloat"))
+			printed = true
+		}
+		label := i18n.T("sweep.unshaped")
+		if !point.Unshaped {
+			label = fmt.Sprintf("%d/%d", point.DownMbit, point.UpMbit)
+		}
+		style := sOK
+		if point.Bloat() >= cfg.Thresholds.BloatWarn {
+			style = sWarn
+		}
+		fmt.Printf("  %-12s %8.1f %8.1f %7s %8.1f\n", label,
+			point.DownMbps, point.UpMbps, style.Render(point.Grade), point.Bloat())
+	}
+
+	result, err := suite.Sweep(ctx, cfg, *steps, report)
+	fmt.Println()
+	if err != nil {
+		// leave nothing half-applied behind, whatever went wrong
+		_ = suite.RestoreShaping(ctx, suite.SweepResult{Iface: result.Iface})
+		return err
+	}
+
+	if result.Best == nil {
+		fmt.Println(sWarn.Render(i18n.T("sweep.none")))
+		_ = suite.RestoreShaping(ctx, suite.SweepResult{Iface: result.Iface})
+		return nil
+	}
+	best := *result.Best
+	cost := 0.0
+	if result.Baseline != nil && result.Baseline.DownMbps > 0 {
+		cost = (result.Baseline.DownMbps - best.DownMbps) / result.Baseline.DownMbps * 100
+	}
+	fmt.Println(sOK.Render(i18n.T("sweep.best", best.DownMbit, best.UpMbit, best.Bloat(), cost)))
+
+	if !*keep {
+		_ = suite.RestoreShaping(ctx, suite.SweepResult{Iface: result.Iface})
+		fmt.Println(sDim.Render(i18n.T("sweep.notkept")))
+		return nil
+	}
+	if err := suite.RestoreShaping(ctx, result); err != nil {
+		return err
+	}
+	fmt.Println(sDim.Render(i18n.T("sweep.kept")))
+	return nil
 }
 
 // --- apply / rollback --------------------------------------------------------

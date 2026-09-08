@@ -18,7 +18,7 @@ import (
 // Filenames share the shape (apply.sh, monitor.jsonl), so anything ending in a
 // known extension is skipped rather than narrowing the prefix list - the
 // catalog really does define apply.* and monitor.* keys.
-var literalKey = regexp.MustCompile(`"((?:fnd|adv|ui|err|cat|apply|monitor|sec|misc)\.[a-zA-Z0-9._:-]+)"`)
+var literalKey = regexp.MustCompile(`"((?:fnd|adv|ui|err|cat|apply|monitor|sec|misc|sweep)\.[a-zA-Z0-9._:-]+)"`)
 
 var filenameLike = regexp.MustCompile(`\.(sh|json|jsonl|txt|conf|md|log|service|yaml|yml|go)$`)
 

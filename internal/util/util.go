@@ -11,6 +11,7 @@ import (
 	"net"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -291,4 +292,36 @@ func pad2(value int) string {
 		return "0" + strconv.Itoa(value)
 	}
 	return strconv.Itoa(value)
+}
+
+// Privileged writes lines to a temporary script and runs it as root, asking for
+// elevation once rather than per command. The shaping sweep needs this: it puts
+// a qdisc up and takes it down again for every rate it tries, and a password
+// prompt on each would make the sweep unusable.
+func Privileged(ctx context.Context, lines []string) (string, error) {
+	dir, err := os.MkdirTemp("", "nabiz-priv")
+	if err != nil {
+		return "", err
+	}
+	defer os.RemoveAll(dir)
+	script := filepath.Join(dir, "run.sh")
+	body := "#!/usr/bin/env bash\nset -u\n" + strings.Join(lines, "\n") + "\n"
+	if err := os.WriteFile(script, []byte(body), 0o700); err != nil {
+		return "", err
+	}
+
+	var command *exec.Cmd
+	switch {
+	case IsRoot():
+		command = exec.CommandContext(ctx, "bash", script)
+	case Which("pkexec") != "":
+		command = exec.CommandContext(ctx, "pkexec", "bash", script)
+	case Which("sudo") != "":
+		command = exec.CommandContext(ctx, "sudo", "bash", script)
+	default:
+		return "", errors.New("this needs root, and neither sudo nor pkexec is available")
+	}
+	command.Stdin = os.Stdin
+	out, err := command.CombinedOutput()
+	return string(out), err
 }
