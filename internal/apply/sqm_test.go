@@ -148,3 +148,30 @@ func TestBpftuneOfferedOnMeasuredRetransmission(t *testing.T) {
 		}
 	}
 }
+
+// Deriving the rate from a run that was already shaped measures the shaper
+// rather than the line. Taking 85% of that on every apply walks the limit down
+// until the link crawls, so a rate already in force has to be preserved.
+func TestSQMDoesNotRatchetItsOwnRateDown(t *testing.T) {
+	result := bloatedRun()
+	// as measured *through* an existing 78/19 shaper
+	result.Load.Download.Bps = 70e6
+	result.Load.Upload.Bps = 17.5e6
+	result.Env.SQM.Egress, result.Env.SQM.EgressMbit = "cake", 19
+	result.Env.SQM.Ingress, result.Env.SQM.IngressMbit = "cake", 78
+	result.Env.SQM.Persistent = false
+	suite.Finalize(&result, config.Default())
+
+	for _, change := range Available(result) {
+		if change.ID != "sqm" {
+			continue
+		}
+		script := strings.Join(change.Apply, "\n")
+		if !strings.Contains(script, "78mbit") || !strings.Contains(script, "19mbit") {
+			t.Errorf("rates were recomputed from a shaped run instead of kept:\n%s", script)
+		}
+		if strings.Contains(script, "59mbit") {
+			t.Error("the download limit ratcheted down")
+		}
+	}
+}

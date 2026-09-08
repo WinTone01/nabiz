@@ -586,6 +586,15 @@ func shapeRates(result suite.Result) (up, down int) {
 	if result.Load.Download != nil {
 		down = int(result.Load.Download.Bps / 1e6 * 0.85)
 	}
+	// A rate already in force is the rate to keep. Deriving from a run that was
+	// itself shaped measures the shaper, not the line, and taking a fraction of
+	// that each time walks the limit down on every apply until the link crawls.
+	if rate := result.Env.SQM.EgressMbit; rate > 0 {
+		up = rate
+	}
+	if rate := result.Env.SQM.IngressMbit; rate > 0 {
+		down = rate
+	}
 	return up, down
 }
 
