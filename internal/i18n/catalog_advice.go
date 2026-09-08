@@ -65,10 +65,10 @@ func init() {
 		"adv.pin-100full.gain":  {"No throughput lost (it was already 100 Mbit) and the negotiation-driven outages stop", "Hız kaybı yok (zaten 100 Mbit) ama anlaşma kaynaklı kopmalar biter"},
 		"adv.pin-100full.risk":  {"The link renegotiates once when the command runs: a few seconds of downtime", "Komut çalıştığı an link bir kez yeniden anlaşır: birkaç saniye kopar"},
 
-		"adv.eee-off.title": {"Turn EEE off if a new cable does not help", "Kablo değişimi çözmezse EEE'yi kapat"},
-		"adv.eee-off.why":   {"Energy Efficient Ethernet is enabled and active. On the r8169 driver, EEE combined with marginal cabling is known to produce link flaps. This is second in line: change the cable first, try this if it persists.", "Energy Efficient Ethernet etkin ve aktif. r8169 sürücüsünde EEE, sınırda kablolarla birlikte link flap üretmesiyle bilinir. Bu ikinci sıradadır: önce kabloyu değiştir, sorun sürerse bunu dene."},
+		"adv.eee-off.title": {"Turn EEE off - the free test, before buying a cable", "EEE'yi kapat - kablo almadan önceki bedava test"},
+		"adv.eee-off.why":   {"Energy Efficient Ethernet is enabled and active. On the r8169 driver it is a known cause of exactly this: the PHY powers the link down between packets and sometimes fails to bring it back. Do this before replacing the cable - it is one reversible command and the answer arrives in half an hour, while a cable means a trip to the shop. If the drops continue, the cable is still the next suspect.", "Energy Efficient Ethernet etkin ve aktif. r8169 sürücüsünde tam olarak bunun bilinen bir nedenidir: PHY paketler arasında linki uyutur ve bazen geri getiremez. Bunu kabloyu değiştirmeden önce yap - tek komut, geri alınabilir ve cevap yarım saatte gelir; kablo ise dükkâna gitmek demek. Düşmeler sürerse sıradaki şüpheli yine kablodur."},
 		"adv.eee-off.s1":    {"Watch for 15-20 minutes", "15-20 dakika izle"},
-		"adv.eee-off.s2":    {"To make it stick, add a systemd unit running the same command at boot", "Kalıcı yapmak için açılışta aynı komutu çalıştıran bir systemd birimi ekle"},
+		"adv.eee-off.s2":    {"If the drops stop, make it survive reboots and relinks with a NetworkManager dispatcher - a boot-time unit alone is not enough, because the setting lives in the PHY and a renegotiation can clear it", "Düşmeler durursa, yeniden başlatmayı ve her yeni anlaşmayı atlatması için NetworkManager dispatcher ekle - yalnızca açılışta çalışan bir birim yetmez, çünkü ayar PHY'da durur ve yeniden anlaşma onu silebilir"},
 		"adv.eee-off.gain":  {"EEE-induced flaps stop", "EEE kaynaklı flap'ler biter"},
 		"adv.eee-off.risk":  {"A negligible increase in power draw", "İhmal edilebilir düzeyde ek güç tüketimi"},
 

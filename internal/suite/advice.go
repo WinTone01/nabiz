@@ -137,6 +137,10 @@ func GenerateAdvice(result Result, cfg config.Config) []Advice {
 		if kernelRegression {
 			// the same cable was quiet for hundreds of hours on the old kernel
 			priority = 3
+		} else if result.Env.EEE.Active {
+			// switching EEE off is one command and reversible, while this asks
+			// for a cable the user may not have; the free test goes first
+			priority = 2
 		}
 		drops := history.Drops
 		if int(link.CarrierUps) > drops {
@@ -195,12 +199,18 @@ func GenerateAdvice(result Result, cfg config.Config) []Advice {
 	}
 	if result.Env.EEE.Active && (history.Drops > 3 || link.CarrierUps > 3) {
 		out.push(Advice{
-			ID: "eee-off", Priority: 3, Category: catPhysical,
+			ID: "eee-off", Priority: 1, Category: catPhysical,
 			Title: t("adv.eee-off.title"),
 			Why:   t("adv.eee-off.why"),
 			How: []string{
 				"sudo ethtool --set-eee " + iface + " eee off",
-				t("adv.eee-off.s1"), t("adv.eee-off.s2"),
+				t("adv.eee-off.s1"),
+				t("adv.eee-off.s2"),
+				"sudo tee /etc/NetworkManager/dispatcher.d/50-nic-eee-off <<'EOF'\n" +
+					"#!/bin/sh\n[ \"$1\" = \"" + iface + "\" ] || exit 0\n" +
+					"case \"$2\" in pre-up|up) /usr/bin/ethtool --set-eee " + iface +
+					" eee off >/dev/null 2>&1 ;; esac\nexit 0\nEOF",
+				"sudo chmod 755 /etc/NetworkManager/dispatcher.d/50-nic-eee-off",
 			},
 			Gain:   t("adv.eee-off.gain"),
 			Risk:   t("adv.eee-off.risk"),
