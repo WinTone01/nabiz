@@ -4,7 +4,9 @@ package util
 
 import (
 	"bufio"
+	"bytes"
 	"context"
+	"errors"
 	"encoding/binary"
 	"net"
 	"os"
@@ -39,14 +41,85 @@ func Sysctl(key string) string {
 	return strings.Join(strings.Fields(ReadText(path, "")), " ")
 }
 
+// Outcome says why a command produced nothing, which is the difference between
+// "this machine does not have the feature" and "we were not allowed to look".
+// Collapsing the two lets a probe report a comfortable zero for something it
+// never managed to read - the failure mode this tool exists to avoid.
+type Outcome int
+
+const (
+	OK        Outcome = iota
+	NotFound          // the binary is not installed
+	Denied            // ran, refused: permission, capability, netlink EPERM
+	TimedOut          // still running when the budget ran out
+	Failed            // ran and exited non-zero for some other reason
+)
+
+// String names the outcome for a finding that has to explain itself.
+func (o Outcome) String() string {
+	switch o {
+	case OK:
+		return "ok"
+	case NotFound:
+		return "not-installed"
+	case Denied:
+		return "permission-denied"
+	case TimedOut:
+		return "timed-out"
+	}
+	return "failed"
+}
+
+// Readable reports whether the command actually answered.
+func (o Outcome) Readable() bool { return o == OK }
+
 // Run executes a command with a timeout and never returns an error for a
 // non-zero exit; probes care about the output, not the status.
 func Run(timeout time.Duration, name string, args ...string) (stdout string, ok bool) {
+	out, outcome := RunDetail(timeout, name, args...)
+	return out, outcome == OK
+}
+
+// RunDetail is Run with the reason for a failure kept. Prefer it wherever the
+// absence of an answer would otherwise be reported as a measurement.
+func RunDetail(timeout time.Duration, name string, args ...string) (string, Outcome) {
+	if _, err := exec.LookPath(name); err != nil {
+		return "", NotFound
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, name, args...)
+	var errBuf bytes.Buffer
+	cmd.Stderr = &errBuf
 	out, err := cmd.Output()
-	return string(out), err == nil
+	switch {
+	case err == nil:
+		return string(out), OK
+	case ctx.Err() != nil:
+		return string(out), TimedOut
+	case deniedBy(errBuf.String(), err):
+		return string(out), Denied
+	}
+	return string(out), Failed
+}
+
+// deniedBy recognises a refusal. Tools that talk to the kernel report it in
+// their own words - ethtool prints a netlink EPERM, ip and tc say "Operation
+// not permitted" - so the message has to be read as well as the exit status.
+func deniedBy(stderr string, err error) bool {
+	if errors.Is(err, os.ErrPermission) {
+		return true
+	}
+	lower := strings.ToLower(stderr)
+	for _, phrase := range []string{
+		"operation not permitted", "permission denied", "not permitted",
+		"must be root", "are you root", "eperm", "access denied",
+	} {
+		if strings.Contains(lower, phrase) {
+			return true
+		}
+	}
+	return false
 }
 
 // Which reports whether a binary exists in PATH.

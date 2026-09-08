@@ -94,6 +94,11 @@ func GenerateAdvice(result Result, cfg config.Config) []Advice {
 	}
 	kernelDetail := kernelRegressionText(result.Env)
 	linkDetail := linkRegressionText(result.Env)
+	// A settled link has stopped making the case for either regression. Leaving
+	// them live recommends downgrading the kernel that is currently holding.
+	if history.Settled() {
+		kernelDetail, linkDetail = "", ""
+	}
 	kernelRegression := kernelDetail != ""
 
 	// --- 1. proven kernel regression ------------------------------------

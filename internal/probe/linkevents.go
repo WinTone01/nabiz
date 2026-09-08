@@ -203,18 +203,27 @@ type EEEStatus struct {
 	Supported bool `json:"supported"`
 	Enabled   bool `json:"enabled"`
 	Active    bool `json:"active"`
+	// Checked is false when ethtool could not be asked at all. Without it an
+	// unreadable NIC reports the same three false values as a healthy one with
+	// EEE switched off, and a prime suspect for link flapping disappears from
+	// the report without anyone being told it was never looked at.
+	Checked bool   `json:"checked"`
+	Reason  string `json:"reason,omitempty"`
 }
 
 // ReadEEE queries ethtool for the EEE state of an interface.
 func ReadEEE(iface string) EEEStatus {
 	var status EEEStatus
-	if util.Which("ethtool") == "" || iface == "" {
+	if iface == "" {
+		status.Reason = "no-interface"
 		return status
 	}
-	out, ok := util.Run(4*time.Second, "ethtool", "--show-eee", iface)
-	if !ok {
+	out, outcome := util.RunDetail(4*time.Second, "ethtool", "--show-eee", iface)
+	if !outcome.Readable() {
+		status.Reason = outcome.String()
 		return status
 	}
+	status.Checked = true
 	for _, line := range strings.Split(out, "\n") {
 		line = strings.TrimSpace(line)
 		if strings.HasPrefix(line, "EEE status:") {

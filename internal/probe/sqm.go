@@ -35,6 +35,8 @@ type SQMState struct {
 	// Persistent is true when something re-applies the shaping after a relink.
 	Persistent bool   `json:"persistent"`
 	IFBName    string `json:"ifb_name,omitempty"`
+	// Checked is false when the interface's qdisc could not be read at all.
+	Checked bool `json:"checked"`
 }
 
 // EgressShaped reports a rate-limited qdisc on the interface itself.
@@ -75,17 +77,21 @@ func ReadSQM(iface string) SQMState {
 	state.CakeAvailable = moduleAvailable("sch_cake")
 	state.IFBAvailable = moduleAvailable("ifb")
 
-	state.Egress, state.EgressMbit = rootQdisc(iface)
-	state.Ingress, state.IngressMbit = rootQdisc(state.IFBName)
+	var egressOK bool
+	state.Egress, state.EgressMbit, egressOK = rootQdisc(iface)
+	state.Ingress, state.IngressMbit, _ = rootQdisc(state.IFBName)
+	// A missing IFB device is a normal answer ("nothing shapes ingress here"),
+	// but an unreadable interface is not, and must not read as "no shaping".
+	state.Checked = egressOK
 	state.Persistent = shapingIsReapplied()
 	return state
 }
 
 // rootQdisc returns the kind and shaped rate of a device's root qdisc.
-func rootQdisc(device string) (string, int) {
-	out, ok := util.Run(4*time.Second, "tc", "qdisc", "show", "dev", device)
-	if !ok {
-		return "", 0
+func rootQdisc(device string) (kind string, mbit int, ok bool) {
+	out, outcome := util.RunDetail(4*time.Second, "tc", "qdisc", "show", "dev", device)
+	if !outcome.Readable() {
+		return "", 0, false
 	}
 	for _, line := range strings.Split(out, "\n") {
 		if !strings.Contains(line, " root ") {
@@ -95,9 +101,9 @@ func rootQdisc(device string) (string, int) {
 		if match == nil {
 			continue
 		}
-		return match[1], parseBandwidthMbit(line)
+		return match[1], parseBandwidthMbit(line), true
 	}
-	return "", 0
+	return "", 0, true
 }
 
 // parseBandwidthMbit reads cake's "bandwidth 78Mbit" back as a number. A qdisc

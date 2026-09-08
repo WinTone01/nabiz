@@ -2,6 +2,7 @@ package suite
 
 import (
 	"testing"
+	"time"
 
 	"github.com/WinTone01/nabiz/internal/config"
 	"github.com/WinTone01/nabiz/internal/probe"
@@ -83,5 +84,45 @@ func TestJournalAdviceTracksStorage(t *testing.T) {
 	Finalize(&kept, cfg)
 	if adviceIDs(kept)["journal-persist"] {
 		t.Error("still advising a change that is already in place")
+	}
+}
+
+// Every judgement built on drops that have stopped has to stand down together.
+// Leaving one live means recommending a kernel downgrade, or a new cable, on a
+// link that is currently behaving - which undoes whatever settled it.
+func TestSettledLinkSilencesEveryDropDerivedClaim(t *testing.T) {
+	cfg := config.Default()
+	now := time.Now()
+	history := probe.LinkHistory{
+		Available: true, Drops: 15, MeanGapMin: 7,
+		WindowFrom: now.Add(-3 * time.Hour), WindowTo: now,
+		Events: []probe.LinkEvent{
+			{At: now.Add(-3 * time.Hour), Kind: "down"},
+			{At: now.Add(-2 * time.Hour), Kind: "up"},
+		},
+		Downshifts: 14, DownshiftNote: "1Gbps → 100Mbps",
+	}
+	result := Result{Env: Env{
+		Link:        probe.LinkInfo{Iface: "enp3s0", SpeedMbit: 100, Duplex: "full", CarrierUps: 15},
+		LinkLog:     history,
+		GoodKernel:  "7.2.0",
+		KernRegData: &probe.KernelRegressionData{GoodKernel: "7.2.0", GoodHours: 45, Running: "7.2.3", CurrentRate: 16},
+		LinkRegData: &probe.Regression{},
+	}}
+	Finalize(&result, cfg)
+
+	if !history.Settled() {
+		t.Fatal("test setup: the link should count as settled")
+	}
+	for _, finding := range result.Findings {
+		if finding.Level == "bad" {
+			t.Errorf("still a red finding on a settled link: %s", finding.Key)
+		}
+	}
+	for _, advice := range result.Advice {
+		switch advice.ID {
+		case "kernel-downgrade", "cable-flap", "modem-port", "pin-100full":
+			t.Errorf("still recommending %q on a settled link", advice.ID)
+		}
 	}
 }

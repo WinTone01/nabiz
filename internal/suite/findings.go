@@ -108,15 +108,19 @@ func deriveFindings(result Result, cfg config.Config) []Finding {
 		}
 		f.addText(level, "link-drops", "link", title, hint)
 	} else if link.CarrierUps > 3 {
+		// no kernel log to date it against, so the counter is all there is
 		f.add("bad", "carrier-flaps", "link", link.CarrierUps)
 	}
 
-	if detail := kernelRegressionText(result.Env); detail != "" {
+	// Both regressions describe drops that have already happened. Once the link
+	// has settled they are history, not a fault to act on - and acting on them
+	// means rolling back the kernel that is currently behaving.
+	if detail := kernelRegressionText(result.Env); detail != "" && !history.Settled() {
 		f.addText("bad", "kernel-regression", "kernel",
 			i18n.T("fnd.kernel-regression.title", detail),
 			i18n.T("fnd.kernel-regression.hint"))
 	}
-	if detail := linkRegressionText(result.Env); detail != "" {
+	if detail := linkRegressionText(result.Env); detail != "" && !history.Settled() {
 		f.addText("bad", "link-regression", "link",
 			i18n.T("fnd.link-regression.title", detail),
 			i18n.T("fnd.link-regression.hint"))
@@ -129,8 +133,13 @@ func deriveFindings(result Result, cfg config.Config) []Finding {
 		}
 		f.add(level, "link-downshift", "link", history.Downshifts, history.DownshiftNote)
 	}
-	if result.Env.EEE.Active && (history.Drops > 3 || link.CarrierUps > 3) {
+	flapping := history.Drops > 3 || link.CarrierUps > 3
+	if result.Env.EEE.Active && flapping {
 		f.add("warn", "eee-active", "link")
+	} else if !result.Env.EEE.Checked && flapping {
+		// EEE is a leading suspect for a flapping link, so not being able to
+		// read it has to be said out loud rather than passing for "not a factor"
+		f.add("warn", "eee-unknown", "link", result.Env.EEE.Reason)
 	}
 	// The driver tried to switch PCIe power saving off for this card and the
 	// firmware would not let it. On its own that proves nothing: firmware that
