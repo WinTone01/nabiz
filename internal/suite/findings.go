@@ -120,14 +120,19 @@ func deriveFindings(result Result, cfg config.Config) []Finding {
 		f.add("warn", "eee-active", "link")
 	}
 	// The driver tried to switch PCIe power saving off for this card and the
-	// firmware would not let it. That is a fault the machine reported about
-	// itself, so it counts whether or not the link has dropped yet.
-	if aspm := result.Env.ASPM; aspm.Blocked {
+	// firmware would not let it. On its own that proves nothing: firmware that
+	// never had ASPM on refuses the same call, and the card is then already in
+	// the state the driver wanted. Only the Link Control register settles it,
+	// and reading it needs root - so an unprivileged run says so instead of
+	// picking whichever answer is more alarming.
+	if aspm := result.Env.ASPM; aspm.Refused() {
 		level := "warn"
 		if history.Drops > 3 || link.CarrierUps > 3 {
 			level = "bad"
 		}
 		f.add(level, "aspm-blocked", "link", aspm.Driver, aspm.Slot)
+	} else if aspm.Blocked && !aspm.StateKnown {
+		f.add("info", "aspm-unverified", "link", aspm.Driver)
 	}
 	// Say out loud when the kernel question cannot be answered yet, rather than
 	// letting an unlogged kernel pass for a quiet one.

@@ -206,7 +206,7 @@ func GenerateAdvice(result Result, cfg config.Config) []Advice {
 			Risk:   t("adv.eee-off.risk"),
 			Revert: []string{"sudo ethtool --set-eee " + iface + " eee on"},
 		})
-		if !result.Env.ASPM.Blocked {
+		if !result.Env.ASPM.Refused() {
 			out.push(Advice{
 				ID: "aspm", Priority: 4, Category: catPhysical,
 				Title: t("adv.aspm.title"),
@@ -242,7 +242,7 @@ func GenerateAdvice(result Result, cfg config.Config) []Advice {
 	// hands off ASPM, which leaves the firmware's setting - the one the driver
 	// objected to - in place. Only pcie_aspm=force hands control over so the
 	// driver's own disable call can succeed.
-	if aspm := result.Env.ASPM; aspm.Blocked && !aspm.Forced() {
+	if aspm := result.Env.ASPM; aspm.Refused() && !aspm.Forced() {
 		out.push(Advice{
 			ID: "aspm-force", Priority: 1, Category: catPhysical,
 			Title: t("adv.aspm-force.title"),

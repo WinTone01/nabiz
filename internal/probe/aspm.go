@@ -35,7 +35,20 @@ type ASPMStatus struct {
 	OSControl bool `json:"os_control"`
 	// CmdlineParam is the pcie_aspm= value already on the kernel command line.
 	CmdlineParam string `json:"cmdline_param,omitempty"`
+	// StateKnown is true when the card's Link Control register could be read;
+	// it needs root, so unprivileged runs leave the state undecided.
+	StateKnown bool `json:"state_known"`
+	// Enabled is the register's own answer: is ASPM actually on right now?
+	Enabled bool   `json:"enabled"`
+	LnkCtl  string `json:"lnkctl,omitempty"`
 }
+
+// Refused reports a fault worth acting on: the driver asked for ASPM to be
+// switched off, was refused, and the card really is running with it on. A
+// refusal alone is not enough - plenty of firmware leaves ASPM off by itself,
+// and then the driver's complaint describes a request that had nothing left to
+// do. Reading the register is what tells those two apart.
+func (a ASPMStatus) Refused() bool { return a.Blocked && a.StateKnown && a.Enabled }
 
 // Forced reports whether the kernel was told to take ASPM control regardless of
 // what the firmware granted.
@@ -77,6 +90,8 @@ func ReadASPM(iface string) ASPMStatus {
 			}
 		}
 	}
+
+	readLinkControl(&status)
 
 	out, ok := util.Run(10*time.Second, "journalctl", "-k", "-b", "--no-pager", "-n", "20000")
 	if !ok {
@@ -134,4 +149,29 @@ func ReadJournalStorage() JournalStorage {
 		}
 	}
 	return storage
+}
+
+// lnkCtlRe pulls the ASPM field out of lspci's Link Control line, which reads
+// either "ASPM Disabled" or "ASPM L0s Enabled" / "ASPM L1 Enabled".
+var lnkCtlRe = regexp.MustCompile(`LnkCtl:\s+ASPM ([^;]+);`)
+
+// readLinkControl asks the card itself whether ASPM is on. lspci only prints
+// the capability registers when it can open the device's extended config
+// space, which needs root - so an unprivileged run leaves StateKnown false
+// rather than assuming either answer.
+func readLinkControl(status *ASPMStatus) {
+	if status.Slot == "" || util.Which("lspci") == "" {
+		return
+	}
+	out, ok := util.Run(6*time.Second, "lspci", "-vv", "-s", status.Slot)
+	if !ok {
+		return
+	}
+	match := lnkCtlRe.FindStringSubmatch(out)
+	if match == nil {
+		return
+	}
+	status.StateKnown = true
+	status.LnkCtl = strings.TrimSpace(match[1])
+	status.Enabled = !strings.EqualFold(status.LnkCtl, "Disabled")
 }
