@@ -45,11 +45,11 @@ func TestSQMShapesBothDirections(t *testing.T) {
 	}
 	script := strings.Join(sqm.Apply, "\n")
 	for _, want := range []string{
-		"ifb-enp3s0",                 // the ingress device exists
-		"mirred egress redirect",     // traffic actually reaches it
-		"ingress",                    // and is shaped there
-		"dev enp3s0 root cake",       // upload shaped too
-		"dispatcher.d/60-nabiz-sqm",  // and it survives a relink
+		"ifb-enp3s0",                // the ingress device exists
+		"mirred egress redirect",    // traffic actually reaches it
+		"ingress",                   // and is shaped there
+		"dev enp3s0 root cake",      // upload shaped too
+		"dispatcher.d/60-nabiz-sqm", // and it survives a relink
 	} {
 		if !strings.Contains(script, want) {
 			t.Errorf("apply script is missing %q:\n%s", want, script)

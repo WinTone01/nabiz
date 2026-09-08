@@ -6,8 +6,8 @@ import (
 	"bufio"
 	"bytes"
 	"context"
-	"errors"
 	"encoding/binary"
+	"errors"
 	"net"
 	"os"
 	"os/exec"
@@ -48,11 +48,11 @@ func Sysctl(key string) string {
 type Outcome int
 
 const (
-	OK        Outcome = iota
-	NotFound          // the binary is not installed
-	Denied            // ran, refused: permission, capability, netlink EPERM
-	TimedOut          // still running when the budget ran out
-	Failed            // ran and exited non-zero for some other reason
+	OK       Outcome = iota
+	NotFound         // the binary is not installed
+	Denied           // ran, refused: permission, capability, netlink EPERM
+	TimedOut         // still running when the budget ran out
+	Failed           // ran and exited non-zero for some other reason
 )
 
 // String names the outcome for a finding that has to explain itself.

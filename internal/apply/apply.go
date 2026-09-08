@@ -344,7 +344,7 @@ func extraChanges(result suite.Result, iface string, sysctls map[string]string,
 			add(change)
 
 		case "cake-gaming":
-			rate := shapeRate(result)
+			rate, _ := shapeRates(result)
 			if rate <= 0 || iface == "" {
 				continue
 			}
@@ -506,7 +506,6 @@ func deadEntries(result suite.Result) []string {
 	return out
 }
 
-
 // sqmDispatcher is where the shaping is installed so it outlives a relink.
 const sqmDispatcher = "/etc/NetworkManager/dispatcher.d/60-nabiz-sqm"
 
@@ -596,19 +595,6 @@ func shapeRates(result suite.Result) (up, down int) {
 		down = rate
 	}
 	return up, down
-}
-
-// shapeRate is the upload rate to shape at: a little under what was measured,
-// because a shaper only controls the queue while it stays the bottleneck.
-func shapeRate(result suite.Result) int {
-	if result.Load == nil || result.Load.Upload == nil {
-		return 0
-	}
-	rate := int(result.Load.Upload.Bps / 1e6 * 0.92)
-	if rate < 1 {
-		return 0
-	}
-	return rate
 }
 
 func restoreQdisc(sysctls map[string]string) string {

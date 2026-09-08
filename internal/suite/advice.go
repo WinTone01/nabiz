@@ -8,6 +8,7 @@ import (
 	"github.com/WinTone01/nabiz/internal/config"
 	"github.com/WinTone01/nabiz/internal/i18n"
 	"github.com/WinTone01/nabiz/internal/probe"
+	"github.com/WinTone01/nabiz/internal/stats"
 	"github.com/WinTone01/nabiz/internal/sysinfo"
 	"github.com/WinTone01/nabiz/internal/util"
 )
@@ -80,6 +81,29 @@ func loadUploadRetrans(result Result) float64 {
 }
 
 // GenerateAdvice turns a finished run into a ranked, actionable to-do list.
+// adviceCtx is one run unpacked, so each category of advice reads as its own
+// routine. This was a single function of nearly nine hundred lines: changing one
+// category meant scrolling past nine others to find it, and every local stayed in
+// scope for all of them whether it meant anything there or not.
+type adviceCtx struct {
+	result           Result
+	cfg              config.Config
+	link             probe.LinkInfo
+	health           probe.TCPHealth
+	history          probe.LinkHistory
+	internet         *stats.Summary
+	gateway          *stats.Summary
+	iface            string
+	rtt              float64
+	kernelDetail     string
+	linkDetail       string
+	kernelRegression bool
+	// unwall and its plaintext DNS leaks are read by both the DNS and the DPI
+	// sections, so they are unpacked here rather than in whichever runs first
+	unwall sysinfo.UnwallState
+	leaks  []probe.ResolverPath
+}
+
 func GenerateAdvice(result Result, cfg config.Config) []Advice {
 	var out adviceList
 	link := result.Env.Link
@@ -101,10 +125,38 @@ func GenerateAdvice(result Result, cfg config.Config) []Advice {
 	}
 	kernelRegression := kernelDetail != ""
 
+	c := adviceCtx{
+		result: result, cfg: cfg, link: link, health: health, history: history,
+		internet: internet, gateway: gateway, iface: iface, rtt: rtt,
+		kernelDetail: kernelDetail, linkDetail: linkDetail,
+		kernelRegression: kernelRegression,
+		unwall:           result.Env.Unwall,
+		leaks:            probe.PlaintextLeaks(result.Env.DNSPaths),
+	}
+	for _, section := range []func(*adviceList){
+		c.adviseKernelRegression,
+		c.advisePhysical,
+		c.adviseQueue,
+		c.adviseKernelTunables,
+		c.adviseBpftune,
+		c.adviseDNS,
+		c.adviseDPI,
+		c.adviseFirewall,
+		c.adviseISP,
+		c.adviseMethod,
+	} {
+		section(&out)
+	}
+
+	SortAdvice(out.items)
+	return out.items
+}
+
+func (c adviceCtx) adviseKernelRegression(out *adviceList) {
 	// --- 1. proven kernel regression ------------------------------------
-	if kernelRegression && result.Env.GoodKernel != "" {
+	if c.kernelRegression && c.result.Env.GoodKernel != "" {
 		steps := []string{}
-		if packages := probe.CachedKernelPackages(result.Env.GoodKernel); len(packages) > 0 {
+		if packages := probe.CachedKernelPackages(c.result.Env.GoodKernel); len(packages) > 0 {
 			steps = append(steps, "sudo pacman -U "+strings.Join(packages, " \\\n              "))
 		} else {
 			steps = append(steps, t("adv.kernel-downgrade.nocache"))
@@ -116,8 +168,8 @@ func GenerateAdvice(result Result, cfg config.Config) []Advice {
 			t("adv.kernel-downgrade.retry"))
 		out.push(Advice{
 			ID: "kernel-downgrade", Priority: 1, Category: catKernel,
-			Title:  t("adv.kernel-downgrade.title", result.Env.GoodKernel),
-			Why:    t("adv.kernel-downgrade.why", kernelDetail),
+			Title:  t("adv.kernel-downgrade.title", c.result.Env.GoodKernel),
+			Why:    t("adv.kernel-downgrade.why", c.kernelDetail),
 			How:    steps,
 			Gain:   t("adv.kernel-downgrade.gain"),
 			Risk:   t("adv.kernel-downgrade.risk"),
@@ -126,7 +178,7 @@ func GenerateAdvice(result Result, cfg config.Config) []Advice {
 		out.push(Advice{
 			ID: "kernel-report", Priority: 3, Category: catKernel,
 			Title: t("adv.kernel-report.title"),
-			Why:   t("adv.kernel-report.why", kernelDetail),
+			Why:   t("adv.kernel-report.why", c.kernelDetail),
 			How: []string{
 				t("adv.kernel-report.s1"),
 				t("adv.kernel-report.s2"),
@@ -134,11 +186,11 @@ func GenerateAdvice(result Result, cfg config.Config) []Advice {
 			},
 			Gain: t("adv.kernel-report.gain"),
 		})
-	} else if history.Drops > 3 && linkDetail != "" {
+	} else if c.history.Drops > 3 && c.linkDetail != "" {
 		out.push(Advice{
 			ID: "kernel-bisect", Priority: 1, Category: catKernel,
 			Title: t("adv.kernel-bisect.title"),
-			Why:   t("adv.kernel-bisect.why", linkDetail),
+			Why:   t("adv.kernel-bisect.why", c.linkDetail),
 			How: []string{
 				t("adv.kernel-bisect.s1"),
 				t("adv.kernel-bisect.s2"),
@@ -150,32 +202,35 @@ func GenerateAdvice(result Result, cfg config.Config) []Advice {
 		})
 	}
 
+}
+
+func (c adviceCtx) advisePhysical(out *adviceList) {
 	// --- 2. physical layer -------------------------------------------------
 	// A link that has been quiet for a long stretch is no longer flapping, whatever
 	// the boot-long counter still says; recommending a cable swap on the strength
 	// of drops that stopped an hour ago undoes the change that stopped them.
-	if (history.Drops > 3 || link.CarrierUps > 3) && !history.Settled() {
+	if (c.history.Drops > 3 || c.link.CarrierUps > 3) && !c.history.Settled() {
 		priority := 1
-		if kernelRegression {
+		if c.kernelRegression {
 			// the same cable was quiet for hundreds of hours on the old kernel
 			priority = 3
-		} else if result.Env.EEE.Active {
+		} else if c.result.Env.EEE.Active {
 			// switching EEE off is one command and reversible, while this asks
 			// for a cable the user may not have; the free test goes first
 			priority = 2
 		}
-		drops := history.Drops
-		if int(link.CarrierUps) > drops {
-			drops = int(link.CarrierUps)
+		drops := c.history.Drops
+		if int(c.link.CarrierUps) > drops {
+			drops = int(c.link.CarrierUps)
 		}
-		why := t("adv.cable-flap.why", iface, drops)
-		if history.SpanMinutes() > 0 {
-			why += t("adv.cable-flap.span", history.SpanMinutes(), history.MeanGapMin,
-				history.DownSeconds, history.DownPct())
+		why := t("adv.cable-flap.why", c.iface, drops)
+		if c.history.SpanMinutes() > 0 {
+			why += t("adv.cable-flap.span", c.history.SpanMinutes(), c.history.MeanGapMin,
+				c.history.DownSeconds, c.history.DownPct())
 		}
 		why += "."
-		if history.Downshifts > 0 && !kernelRegression {
-			why += t("adv.cable-flap.downshift", history.Downshifts, history.DownshiftNote)
+		if c.history.Downshifts > 0 && !c.kernelRegression {
+			why += t("adv.cable-flap.downshift", c.history.Downshifts, c.history.DownshiftNote)
 		}
 		out.push(Advice{
 			ID: "cable-flap", Priority: priority, Category: catPhysical,
@@ -204,41 +259,41 @@ func GenerateAdvice(result Result, cfg config.Config) []Advice {
 			Gain:  t("adv.switch-bypass.gain"),
 		})
 	}
-	if history.Downshifts > 3 && !kernelRegression && !history.Settled() {
+	if c.history.Downshifts > 3 && !c.kernelRegression && !c.history.Settled() {
 		out.push(Advice{
 			ID: "pin-100full", Priority: 2, Category: catPhysical,
 			Title: t("adv.pin-100full.title"),
-			Why:   t("adv.pin-100full.why", history.Downshifts),
+			Why:   t("adv.pin-100full.why", c.history.Downshifts),
 			How: []string{
-				"sudo ethtool -s " + iface + " autoneg on advertise 0x008",
+				"sudo ethtool -s " + c.iface + " autoneg on advertise 0x008",
 				t("adv.pin-100full.s1"),
 				t("adv.pin-100full.s2"),
 			},
 			Gain:   t("adv.pin-100full.gain"),
 			Risk:   t("adv.pin-100full.risk"),
-			Revert: []string{"sudo ethtool -s " + iface + " autoneg on advertise 0x03f"},
+			Revert: []string{"sudo ethtool -s " + c.iface + " autoneg on advertise 0x03f"},
 		})
 	}
-	if result.Env.EEE.Active && (history.Drops > 3 || link.CarrierUps > 3) && !history.Settled() {
+	if c.result.Env.EEE.Active && (c.history.Drops > 3 || c.link.CarrierUps > 3) && !c.history.Settled() {
 		out.push(Advice{
 			ID: "eee-off", Priority: 1, Category: catPhysical,
 			Title: t("adv.eee-off.title"),
 			Why:   t("adv.eee-off.why"),
 			How: []string{
-				"sudo ethtool --set-eee " + iface + " eee off",
+				"sudo ethtool --set-eee " + c.iface + " eee off",
 				t("adv.eee-off.s1"),
 				t("adv.eee-off.s2"),
 				"sudo tee /etc/NetworkManager/dispatcher.d/50-nic-eee-off <<'EOF'\n" +
-					"#!/bin/sh\n[ \"$1\" = \"" + iface + "\" ] || exit 0\n" +
-					"case \"$2\" in pre-up|up) /usr/bin/ethtool --set-eee " + iface +
+					"#!/bin/sh\n[ \"$1\" = \"" + c.iface + "\" ] || exit 0\n" +
+					"case \"$2\" in pre-up|up) /usr/bin/ethtool --set-eee " + c.iface +
 					" eee off >/dev/null 2>&1 ;; esac\nexit 0\nEOF",
 				"sudo chmod 755 /etc/NetworkManager/dispatcher.d/50-nic-eee-off",
 			},
 			Gain:   t("adv.eee-off.gain"),
 			Risk:   t("adv.eee-off.risk"),
-			Revert: []string{"sudo ethtool --set-eee " + iface + " eee on"},
+			Revert: []string{"sudo ethtool --set-eee " + c.iface + " eee on"},
 		})
-		if !result.Env.ASPM.Refused() {
+		if !c.result.Env.ASPM.Refused() {
 			out.push(Advice{
 				ID: "aspm", Priority: 4, Category: catPhysical,
 				Title: t("adv.aspm.title"),
@@ -251,8 +306,8 @@ func GenerateAdvice(result Result, cfg config.Config) []Advice {
 	}
 	// Nothing else on this list can be judged across a reboot while the journal
 	// dies with the boot, so this comes before the experiments it makes readable.
-	if journal := result.Env.Journal; !journal.Persistent &&
-		(history.Drops > 0 || link.CarrierUps > 1) {
+	if journal := c.result.Env.Journal; !journal.Persistent &&
+		(c.history.Drops > 0 || c.link.CarrierUps > 1) {
 		out.push(Advice{
 			ID: "journal-persist", Priority: 1, Category: catPhysical,
 			Title: t("adv.journal-persist.title"),
@@ -274,7 +329,7 @@ func GenerateAdvice(result Result, cfg config.Config) []Advice {
 	// hands off ASPM, which leaves the firmware's setting - the one the driver
 	// objected to - in place. Only pcie_aspm=force hands control over so the
 	// driver's own disable call can succeed.
-	if aspm := result.Env.ASPM; aspm.Refused() && !aspm.Forced() {
+	if aspm := c.result.Env.ASPM; aspm.Refused() && !aspm.Forced() {
 		out.push(Advice{
 			ID: "aspm-force", Priority: 1, Category: catPhysical,
 			Title: t("adv.aspm-force.title"),
@@ -291,27 +346,27 @@ func GenerateAdvice(result Result, cfg config.Config) []Advice {
 			Revert: []string{t("adv.aspm-force.revert")},
 		})
 	}
-	if link.SpeedMbit > 0 && link.SpeedMbit <= 100 && !link.Wireless {
+	if c.link.SpeedMbit > 0 && c.link.SpeedMbit <= 100 && !c.link.Wireless {
 		out.push(Advice{
 			ID: "link-speed", Priority: 3, Category: catPhysical,
-			Title: t("adv.link-speed.title", link.SpeedMbit),
+			Title: t("adv.link-speed.title", c.link.SpeedMbit),
 			Why:   t("adv.link-speed.why"),
 			How: []string{
-				"ethtool " + iface, t("adv.link-speed.s1"),
+				"ethtool " + c.iface, t("adv.link-speed.s1"),
 				t("adv.link-speed.s2"), t("adv.link-speed.s3"),
 			},
 			Gain: t("adv.link-speed.gain"),
 		})
 	}
-	if link.Duplex != "" && link.Duplex != "full" {
+	if c.link.Duplex != "" && c.link.Duplex != "full" {
 		out.push(Advice{
 			ID: "duplex", Priority: 1, Category: catPhysical,
 			Title: t("adv.duplex.title"), Why: t("adv.duplex.why"),
-			How:  []string{"sudo ethtool -s " + iface + " autoneg on", t("adv.duplex.s1")},
+			How:  []string{"sudo ethtool -s " + c.iface + " autoneg on", t("adv.duplex.s1")},
 			Gain: t("adv.duplex.gain"),
 		})
 	}
-	if count := link.Stats["rx_crc_errors"]; count > 0 {
+	if count := c.link.Stats["rx_crc_errors"]; count > 0 {
 		out.push(Advice{
 			ID: "crc", Priority: 1, Category: catPhysical,
 			Title: t("adv.crc.title"), Why: t("adv.crc.why", count),
@@ -319,63 +374,66 @@ func GenerateAdvice(result Result, cfg config.Config) []Advice {
 			Gain: t("adv.crc.gain"),
 		})
 	}
-	if link.Wireless && link.SignalDBm < -70 && link.SignalDBm != 0 {
+	if c.link.Wireless && c.link.SignalDBm < -70 && c.link.SignalDBm != 0 {
 		out.push(Advice{
 			ID: "wifi", Priority: 2, Category: catPhysical,
-			Title: t("adv.wifi.title", link.SignalDBm), Why: t("adv.wifi.why"),
+			Title: t("adv.wifi.title", c.link.SignalDBm), Why: t("adv.wifi.why"),
 			How: []string{t("adv.wifi.s1"), t("adv.wifi.s2"),
-				"iw dev " + iface + " scan | grep -E 'SSID|signal|freq'", t("adv.wifi.s3")},
+				"iw dev " + c.iface + " scan | grep -E 'SSID|signal|freq'", t("adv.wifi.s3")},
 			Gain: t("adv.wifi.gain"),
 		})
 	}
-	if link.Wireless && internet != nil && internet.Jitter > cfg.Thresholds.JitterWarn {
+	if c.link.Wireless && c.internet != nil && c.internet.Jitter > c.cfg.Thresholds.JitterWarn {
 		out.push(Advice{
 			ID: "wifi-channel", Priority: 3, Category: catPhysical,
 			Title: t("adv.wifi-channel.title"),
-			Why:   t("adv.wifi-channel.why", internet.Jitter),
-			How: []string{"iw dev " + iface + " scan | grep -E 'freq|signal|SSID'",
+			Why:   t("adv.wifi-channel.why", c.internet.Jitter),
+			How: []string{"iw dev " + c.iface + " scan | grep -E 'freq|signal|SSID'",
 				t("adv.wifi-channel.s1")},
 			Gain: t("adv.wifi-channel.gain"),
 		})
 	}
-	if gateway != nil && gateway.LossPct >= cfg.Thresholds.LossWarn {
+	if c.gateway != nil && c.gateway.LossPct >= c.cfg.Thresholds.LossWarn {
 		out.push(Advice{
 			ID: "lan-loss", Priority: 1, Category: catPhysical,
-			Title: t("adv.lan-loss.title"), Why: t("adv.lan-loss.why", gateway.LossPct),
+			Title: t("adv.lan-loss.title"), Why: t("adv.lan-loss.why", c.gateway.LossPct),
 			How:  []string{t("adv.lan-loss.s1"), t("adv.lan-loss.s2"), "nabiz quick"},
 			Gain: t("adv.lan-loss.gain"),
 		})
 	}
 
+}
+
+func (c adviceCtx) adviseQueue(out *adviceList) {
 	// --- 3. queue management ------------------------------------------------
-	if result.Load != nil {
-		bloat := result.Load.WorstDelta()
+	if c.result.Load != nil {
+		bloat := c.result.Load.WorstDelta()
 		upMbps, downMbps := 0.0, 0.0
-		if result.Load.Upload != nil {
-			upMbps = result.Load.Upload.Bps / 1e6
+		if c.result.Load.Upload != nil {
+			upMbps = c.result.Load.Upload.Bps / 1e6
 		}
-		if result.Load.Download != nil {
-			downMbps = result.Load.Download.Bps / 1e6
+		if c.result.Load.Download != nil {
+			downMbps = c.result.Load.Download.Bps / 1e6
 		}
-		sqm := result.Env.SQM
+		sqm := c.result.Env.SQM
 		// A shaper only controls a queue while it is the bottleneck, so both
 		// rates sit under what the line actually delivered. Upload keeps a
 		// slim margin because we own that queue outright; download needs a
 		// wider one, since the queue being drained is inside the modem and the
 		// only lever is making the far-end senders back off.
 		shapeUp, shapeDown := int(upMbps*0.92), int(downMbps*0.85)
-		if bloat >= cfg.Thresholds.BloatWarn && sqm.Possible() &&
+		if bloat >= c.cfg.Thresholds.BloatWarn && sqm.Possible() &&
 			!(sqm.EgressShaped() && sqm.IngressShaped()) {
-			ifb := probe.IFBFor(iface)
+			ifb := probe.IFBFor(c.iface)
 			steps := []string{t("adv.sqm.s1", shapeDown, shapeUp)}
 			steps = append(steps,
 				"sudo modprobe ifb numifbs=0",
 				fmt.Sprintf("sudo ip link add %s type ifb 2>/dev/null; sudo ip link set %s up", ifb, ifb),
 				fmt.Sprintf("sudo tc qdisc replace dev %s root cake bandwidth %dmbit diffserv4 triple-isolate nat ack-filter",
-					iface, maxInt(shapeUp, 1)),
-				fmt.Sprintf("sudo tc qdisc replace dev %s handle ffff: ingress", iface),
+					c.iface, maxInt(shapeUp, 1)),
+				fmt.Sprintf("sudo tc qdisc replace dev %s handle ffff: ingress", c.iface),
 				fmt.Sprintf("sudo tc filter replace dev %s parent ffff: protocol all matchall action mirred egress redirect dev %s",
-					iface, ifb),
+					c.iface, ifb),
 				fmt.Sprintf("sudo tc qdisc replace dev %s root cake bandwidth %dmbit besteffort triple-isolate nat wash ingress",
 					ifb, maxInt(shapeDown, 1)),
 				"nabiz load",
@@ -383,14 +441,14 @@ func GenerateAdvice(result Result, cfg config.Config) []Advice {
 				t("adv.sqm.s3"))
 			out.push(Advice{
 				ID: "sqm", Priority: 2, Category: catQueue,
-				Title:  t("adv.sqm.title"),
-				Why:    t("adv.sqm.why", bloat, result.Load.Grade, result.Load.DownDelta, result.Load.UpDelta),
-				How:    steps,
-				Gain:   t("adv.sqm.gain"),
-				Risk:   t("adv.sqm.risk"),
+				Title: t("adv.sqm.title"),
+				Why:   t("adv.sqm.why", bloat, c.result.Load.Grade, c.result.Load.DownDelta, c.result.Load.UpDelta),
+				How:   steps,
+				Gain:  t("adv.sqm.gain"),
+				Risk:  t("adv.sqm.risk"),
 				Revert: []string{
-					fmt.Sprintf("sudo tc qdisc del dev %s ingress; sudo ip link del %s", iface, ifb),
-					"sudo tc qdisc replace dev " + iface + " root fq_codel",
+					fmt.Sprintf("sudo tc qdisc del dev %s ingress; sudo ip link del %s", c.iface, ifb),
+					"sudo tc qdisc replace dev " + c.iface + " root fq_codel",
 				},
 			})
 		}
@@ -404,7 +462,7 @@ func GenerateAdvice(result Result, cfg config.Config) []Advice {
 				How: []string{
 					t("adv.sqm-persist.s1"),
 					"nabiz apply --only sqm",
-					t("adv.sqm-persist.s2", iface),
+					t("adv.sqm-persist.s2", c.iface),
 				},
 				Gain:   t("adv.sqm-persist.gain"),
 				Revert: []string{"sudo rm -f /etc/NetworkManager/dispatcher.d/60-nabiz-sqm"},
@@ -412,34 +470,34 @@ func GenerateAdvice(result Result, cfg config.Config) []Advice {
 		}
 		// Without an IFB device only the upload half can be shaped, so say that
 		// rather than presenting a partial fix as the whole one.
-		if bloat >= cfg.Thresholds.BloatWarn && !sqm.Possible() {
+		if bloat >= c.cfg.Thresholds.BloatWarn && !sqm.Possible() {
 			out.push(Advice{
 				ID: "cake-gaming", Priority: 4, Category: catQueue,
 				Title: t("adv.cake-gaming.title"),
-				Why:   t("adv.cake-gaming.why", result.Load.UpDelta),
+				Why:   t("adv.cake-gaming.why", c.result.Load.UpDelta),
 				How: []string{
 					fmt.Sprintf("sudo tc qdisc replace dev %s root cake bandwidth %dmbit diffserv4",
-						iface, maxInt(shapeUp, 1)),
+						c.iface, maxInt(shapeUp, 1)),
 					t("adv.cake-gaming.s1"), "nabiz load",
 				},
 				Gain:   t("adv.cake-gaming.gain"),
 				Risk:   t("adv.cake-gaming.risk"),
-				Revert: []string{"sudo tc qdisc replace dev " + iface + " root fq_codel"},
+				Revert: []string{"sudo tc qdisc replace dev " + c.iface + " root fq_codel"},
 			})
 		}
-		if result.Load.UpDelta >= cfg.Thresholds.BloatWarn &&
-			result.Env.Sysctls["net.ipv4.tcp_notsent_lowat"] == "-1" {
+		if c.result.Load.UpDelta >= c.cfg.Thresholds.BloatWarn &&
+			c.result.Env.Sysctls["net.ipv4.tcp_notsent_lowat"] == "-1" {
 			out.push(Advice{
 				ID: "notsent-lowat", Priority: 4, Category: catKernel,
 				Title: t("adv.notsent-lowat.title"),
-				Why:   t("adv.notsent-lowat.why", result.Load.UpDelta),
+				Why:   t("adv.notsent-lowat.why", c.result.Load.UpDelta),
 				How: []string{"sudo sysctl -w net.ipv4.tcp_notsent_lowat=131072",
 					t("adv.notsent-lowat.s1"), "nabiz load"},
 				Gain:   t("adv.notsent-lowat.gain"),
 				Revert: []string{"sudo sysctl -w net.ipv4.tcp_notsent_lowat=-1"},
 			})
 		}
-		if qdisc := result.Env.Sysctls["net.core.default_qdisc"]; qdisc != "" &&
+		if qdisc := c.result.Env.Sysctls["net.core.default_qdisc"]; qdisc != "" &&
 			qdisc != "fq_codel" && qdisc != "cake" && qdisc != "fq" {
 			out.push(Advice{
 				ID: "default-qdisc", Priority: 3, Category: catQueue,
@@ -455,14 +513,17 @@ func GenerateAdvice(result Result, cfg config.Config) []Advice {
 		}
 	}
 
+}
+
+func (c adviceCtx) adviseKernelTunables(out *adviceList) {
 	// --- 4. kernel tunables ---------------------------------------------------
-	cc := result.Env.Sysctls["net.ipv4.tcp_congestion_control"]
-	available := result.Env.Sysctls["net.ipv4.tcp_available_congestion_control"]
+	cc := c.result.Env.Sysctls["net.ipv4.tcp_congestion_control"]
+	available := c.result.Env.Sysctls["net.ipv4.tcp_available_congestion_control"]
 	if cc == "cubic" && strings.Contains(available, "bbr") &&
-		(health.RetransPct > 1 || (internet != nil && internet.LossPct > 0.5)) {
+		(c.health.RetransPct > 1 || (c.internet != nil && c.internet.LossPct > 0.5)) {
 		out.push(Advice{
 			ID: "bbr", Priority: 3, Category: catKernel,
-			Title: t("adv.bbr.title"), Why: t("adv.bbr.why", health.RetransPct),
+			Title: t("adv.bbr.title"), Why: t("adv.bbr.why", c.health.RetransPct),
 			How: []string{
 				"sudo sysctl -w net.ipv4.tcp_congestion_control=bbr",
 				"nabiz load", t("adv.bbr.s1"), t("adv.bbr.s2"),
@@ -472,21 +533,21 @@ func GenerateAdvice(result Result, cfg config.Config) []Advice {
 			Revert: []string{"sudo sysctl -w net.ipv4.tcp_congestion_control=cubic"},
 		})
 	}
-	if result.MTU != nil && result.MTU.Blackhole {
+	if c.result.MTU != nil && c.result.MTU.Blackhole {
 		out.push(Advice{
 			ID: "mtu-probe", Priority: 2, Category: catKernel,
 			Title: t("adv.mtu-probe.title"),
-			Why:   t("adv.mtu-probe.why", result.MTU.IfaceMTU, result.MTU.ProbedMTU),
+			Why:   t("adv.mtu-probe.why", c.result.MTU.IfaceMTU, c.result.MTU.ProbedMTU),
 			How: []string{
 				"sudo sysctl -w net.ipv4.tcp_mtu_probing=1",
 				t("adv.mtu-probe.s1"),
-				fmt.Sprintf("sudo ip link set %s mtu %d", iface, result.MTU.ProbedMTU),
+				fmt.Sprintf("sudo ip link set %s mtu %d", c.iface, c.result.MTU.ProbedMTU),
 			},
 			Gain:   t("adv.mtu-probe.gain"),
 			Revert: []string{"sudo sysctl -w net.ipv4.tcp_mtu_probing=0"},
 		})
 	}
-	if result.Env.Sysctls["net.ipv4.tcp_slow_start_after_idle"] == "1" {
+	if c.result.Env.Sysctls["net.ipv4.tcp_slow_start_after_idle"] == "1" {
 		out.push(Advice{
 			ID: "ssaio", Priority: 5, Category: catKernel,
 			Title: t("adv.ssaio.title"), Why: t("adv.ssaio.why"),
@@ -495,7 +556,7 @@ func GenerateAdvice(result Result, cfg config.Config) []Advice {
 			Revert: []string{"sudo sysctl -w net.ipv4.tcp_slow_start_after_idle=1"},
 		})
 	}
-	if conntrack := result.Env.Conntrack; conntrack.Max > 0 &&
+	if conntrack := c.result.Env.Conntrack; conntrack.Max > 0 &&
 		float64(conntrack.Count)/float64(conntrack.Max) > 0.8 {
 		ratio := float64(conntrack.Count) / float64(conntrack.Max) * 100
 		out.push(Advice{
@@ -509,23 +570,26 @@ func GenerateAdvice(result Result, cfg config.Config) []Advice {
 	// Gated on what ethtool reports right now. The retransmission rate is
 	// cumulative since boot and never falls, so judging by that alone left this
 	// recommendation standing for the rest of the uptime after it was applied.
-	if health.RetransPct > 2 && gateway != nil && gateway.LossPct < 0.5 &&
-		!link.Wireless && link.Offloads.AnyOn() {
+	if c.health.RetransPct > 2 && c.gateway != nil && c.gateway.LossPct < 0.5 &&
+		!c.link.Wireless && c.link.Offloads.AnyOn() {
 		out.push(Advice{
 			ID: "nic-offload", Priority: 4, Category: catKernel,
-			Title: t("adv.nic-offload.title"), Why: t("adv.nic-offload.why", health.RetransPct),
+			Title: t("adv.nic-offload.title"), Why: t("adv.nic-offload.why", c.health.RetransPct),
 			How: []string{
-				"sudo ethtool -K " + iface + " gro off gso off tso off",
+				"sudo ethtool -K " + c.iface + " gro off gso off tso off",
 				t("adv.nic-offload.s1"), "nabiz load",
 			},
 			Gain:   t("adv.nic-offload.gain"),
 			Risk:   t("adv.nic-offload.risk"),
-			Revert: []string{"sudo ethtool -K " + iface + " gro on gso on tso on"},
+			Revert: []string{"sudo ethtool -K " + c.iface + " gro on gso on tso on"},
 		})
 	}
 
+}
+
+func (c adviceCtx) adviseBpftune(out *adviceList) {
 	// --- 5. bpftune ---------------------------------------------------------------
-	bpftune := result.Env.Bpftune
+	bpftune := c.result.Env.Bpftune
 	if bpftune.Failed {
 		steps := []string{}
 		if bpftune.Overridden {
@@ -546,7 +610,7 @@ func GenerateAdvice(result Result, cfg config.Config) []Advice {
 		})
 	}
 	if bpftune.Installed && bpftune.Running {
-		bdp := sysinfo.BDPBytes(link.SpeedMbit, rtt)
+		bdp := sysinfo.BDPBytes(c.link.SpeedMbit, c.rtt)
 		for _, tunable := range bpftune.Tunables {
 			if tunable.Key != "net.ipv4.tcp_rmem" || bdp <= 0 {
 				continue
@@ -559,7 +623,7 @@ func GenerateAdvice(result Result, cfg config.Config) []Advice {
 			out.push(Advice{
 				ID: "bpftune-buffers", Priority: 3, Category: catBpftune,
 				Title: t("adv.bpftune-buffers.title"),
-				Why:   t("adv.bpftune-buffers.why", maxBuf/1e6, link.SpeedMbit, rtt, bdp/1024),
+				Why:   t("adv.bpftune-buffers.why", maxBuf/1e6, c.link.SpeedMbit, c.rtt, bdp/1024),
 				How: []string{
 					fmt.Sprintf("sudo sysctl -w net.ipv4.tcp_rmem=\"4096 131072 %d\"", sane),
 					t("adv.bpftune-buffers.s1"), "nabiz load",
@@ -609,11 +673,11 @@ func GenerateAdvice(result Result, cfg config.Config) []Advice {
 		// this check was written for the load test read 10% while the kernel-wide
 		// number sat at 0.8%, and stopping bpftune took the load figure to 0.3%
 		// with no loss of throughput.
-		if loadRetrans := loadUploadRetrans(result); loadRetrans >= 3 {
+		if loadRetrans := loadUploadRetrans(c.result); loadRetrans >= 3 {
 			out.push(Advice{
 				ID: "bpftune-retrans", Priority: 2, Category: catBpftune,
 				Title: t("adv.bpftune-retrans.title"),
-				Why:   t("adv.bpftune-retrans.why", loadRetrans, health.RetransPct),
+				Why:   t("adv.bpftune-retrans.why", loadRetrans, c.health.RetransPct),
 				How: []string{
 					"nabiz ab --target bpftune",
 					t("adv.bpftune-retrans.s1"),
@@ -626,23 +690,23 @@ func GenerateAdvice(result Result, cfg config.Config) []Advice {
 				Revert: []string{"sudo systemctl enable --now bpftune"},
 			})
 		}
-		if health.RetransPct > 2 {
+		if c.health.RetransPct > 2 {
 			priority := 2
-			if kernelRegression {
+			if c.kernelRegression {
 				priority = 4
 			}
 			out.push(Advice{
 				ID: "bpftune-vs-physical", Priority: priority, Category: catBpftune,
 				Title: t("adv.bpftune-vs-physical.title"),
-				Why:   t("adv.bpftune-vs-physical.why", health.RetransPct),
+				Why:   t("adv.bpftune-vs-physical.why", c.health.RetransPct),
 				How: []string{t("adv.bpftune-vs-physical.s1"),
 					"sudo bpftune -R && sudo systemctl restart bpftune",
 					t("adv.bpftune-vs-physical.s2"), "nabiz deep"},
 				Gain: t("adv.bpftune-vs-physical.gain"),
 			})
 		}
-	} else if !bpftune.Installed && result.Load != nil &&
-		result.Load.WorstDelta() < 30 && health.RetransPct < 0.5 {
+	} else if !bpftune.Installed && c.result.Load != nil &&
+		c.result.Load.WorstDelta() < 30 && c.health.RetransPct < 0.5 {
 		out.push(Advice{
 			ID: "bpftune-not-needed", Priority: 5, Category: catBpftune,
 			Title: t("adv.bpftune-not-needed.title"), Why: t("adv.bpftune-not-needed.why"),
@@ -651,17 +715,18 @@ func GenerateAdvice(result Result, cfg config.Config) []Advice {
 		})
 	}
 
+}
+
+func (c adviceCtx) adviseDNS(out *adviceList) {
 	// --- 6. DNS -----------------------------------------------------------------------
-	unwall := result.Env.Unwall
-	leaks := probe.PlaintextLeaks(result.Env.DNSPaths)
-	if unwall.DNSEncrypted && len(leaks) > 0 {
+	if c.unwall.DNSEncrypted && len(c.leaks) > 0 {
 		// The steps have to name the scope that is actually leaking. Telling
 		// someone to clear the global fallback when the addresses came from a
 		// DHCP lease on one interface is advice that cannot work, however many
 		// times it is followed.
 		var described []string
 		steps := []string{}
-		for _, leak := range leaks {
+		for _, leak := range c.leaks {
 			if leak.Global() {
 				described = append(described, i18n.T("dns.scope.global")+": "+
 					strings.Join(leak.Servers, ", "))
@@ -684,7 +749,7 @@ func GenerateAdvice(result Result, cfg config.Config) []Advice {
 			Gain:  t("adv.dns-leak.gain"),
 		})
 	}
-	if !unwall.DNSEncrypted {
+	if !c.unwall.DNSEncrypted {
 		out.push(Advice{
 			ID: "dns-encrypt", Priority: 3, Category: catDNS,
 			Title: t("adv.dns-encrypt.title"), Why: t("adv.dns-encrypt.why"),
@@ -693,7 +758,7 @@ func GenerateAdvice(result Result, cfg config.Config) []Advice {
 			Risk: t("adv.dns-encrypt.risk"),
 		})
 	}
-	if fastest, fastestMs := fastestResolver(result.DNSBench); fastest != "" {
+	if fastest, fastestMs := fastestResolver(c.result.DNSBench); fastest != "" {
 		out.push(Advice{
 			ID: "dns-fastest", Priority: 5, Category: catDNS,
 			Title: t("adv.dns-fastest.title", fmt.Sprintf("%s (%.0f ms)", fastest, fastestMs)),
@@ -701,7 +766,7 @@ func GenerateAdvice(result Result, cfg config.Config) []Advice {
 			How:   []string{t("adv.dns-fastest.s1"), t("adv.dns-fastest.s2"), "nabiz dns"},
 			Gain:  t("adv.dns-fastest.gain"),
 		})
-		if fastestMs > 20 && !hasLocalCache(result.DNSBench) {
+		if fastestMs > 20 && !hasLocalCache(c.result.DNSBench) {
 			out.push(Advice{
 				ID: "dns-cache", Priority: 4, Category: catDNS,
 				Title: t("adv.dns-cache.title"), Why: t("adv.dns-cache.why", fastestMs),
@@ -710,7 +775,7 @@ func GenerateAdvice(result Result, cfg config.Config) []Advice {
 			})
 		}
 	}
-	for _, check := range result.DNSChecks {
+	for _, check := range c.result.DNSChecks {
 		switch {
 		case check.Name == "nxdomain-hijack" && check.Verdict == "bad":
 			out.push(Advice{
@@ -731,9 +796,12 @@ func GenerateAdvice(result Result, cfg config.Config) []Advice {
 		}
 	}
 
+}
+
+func (c adviceCtx) adviseDPI(out *adviceList) {
 	// --- 7. DPI / zapret -------------------------------------------------------------
 	var splitHelps, blocked []string
-	for _, verdict := range result.DPI {
+	for _, verdict := range c.result.DPI {
 		switch verdict.Verdict {
 		case "dpi-split-helps":
 			splitHelps = append(splitHelps, verdict.Domain)
@@ -752,7 +820,7 @@ func GenerateAdvice(result Result, cfg config.Config) []Advice {
 			Gain: t("adv.zapret-split.gain"),
 		})
 	}
-	if len(blocked) > 0 && unwall.Running {
+	if len(blocked) > 0 && c.unwall.Running {
 		out.push(Advice{
 			ID: "zapret-strategy", Priority: 2, Category: catDPI,
 			Title: t("adv.zapret-strategy.title"),
@@ -761,7 +829,7 @@ func GenerateAdvice(result Result, cfg config.Config) []Advice {
 			Gain:  t("adv.zapret-strategy.gain"),
 		})
 	}
-	notNeeded := stillListed(result.DesyncNotNeeded)
+	notNeeded := stillListed(c.result.DesyncNotNeeded)
 	if len(notNeeded) > 0 {
 		out.push(Advice{
 			ID: "hostlist-false-positives", Priority: 2, Category: catDPI,
@@ -778,7 +846,7 @@ func GenerateAdvice(result Result, cfg config.Config) []Advice {
 	}
 	// Entries that no longer resolve cost a lookup on every match and will never
 	// be blocked again; they are pure sediment in a list that only ever grows.
-	if dead := deadHostlistEntries(result); len(dead) > 0 {
+	if dead := deadHostlistEntries(c.result); len(dead) > 0 {
 		out.push(Advice{
 			ID: "hostlist-dead", Priority: 4, Category: catDPI,
 			Title:  t("adv.hostlist-dead.title", len(dead)),
@@ -788,22 +856,22 @@ func GenerateAdvice(result Result, cfg config.Config) []Advice {
 			Revert: []string{"nabiz rollback"},
 		})
 	}
-	if unwall.Running && len(result.DPI) > 0 && len(result.DesyncNotNeeded) == 0 &&
-		comparisonIsStale(cfg) &&
-		len(splitHelps) == 0 && len(blocked) == 0 && unwall.HostlistN+unwall.AutoHostlistN > 0 {
+	if c.unwall.Running && len(c.result.DPI) > 0 && len(c.result.DesyncNotNeeded) == 0 &&
+		comparisonIsStale(c.cfg) &&
+		len(splitHelps) == 0 && len(blocked) == 0 && c.unwall.HostlistN+c.unwall.AutoHostlistN > 0 {
 		out.push(Advice{
-			ID: "unwall-verify", Priority: 4, Category: catDPI,
+			ID: "c.unwall-verify", Priority: 4, Category: catDPI,
 			Title: t("adv.unwall-verify.title"),
-			Why:   t("adv.unwall-verify.why", len(result.DPI)),
-			How:   []string{"nabiz ab --target unwall", t("adv.unwall-verify.s1")},
+			Why:   t("adv.unwall-verify.why", len(c.result.DPI)),
+			How:   []string{"nabiz ab --target c.unwall", t("adv.unwall-verify.s1")},
 			Gain:  t("adv.unwall-verify.gain"),
 		})
 	}
-	if nfqDropCount(result) > 0 {
+	if nfqDropCount(c.result) > 0 {
 		out.push(Advice{
 			ID: "nfqueue-qlen", Priority: 2, Category: catDPI,
 			Title: t("adv.nfqueue-qlen.title"),
-			Why:   t("adv.nfqueue-qlen.why", nfqDropCount(result)),
+			Why:   t("adv.nfqueue-qlen.why", nfqDropCount(c.result)),
 			How: []string{
 				"sudo sysctl -w net.core.rmem_max=8388608",
 				t("adv.nfqueue-qlen.s1"),
@@ -812,43 +880,43 @@ func GenerateAdvice(result Result, cfg config.Config) []Advice {
 			Gain: t("adv.nfqueue-qlen.gain"),
 		})
 	}
-	if unwall.AutoHostlistN > 300 {
+	if c.unwall.AutoHostlistN > 300 {
 		out.push(Advice{
 			ID: "hostlist-prune", Priority: 3, Category: catDPI,
-			Title: t("adv.hostlist-prune.title", unwall.AutoHostlistN),
+			Title: t("adv.hostlist-prune.title", c.unwall.AutoHostlistN),
 			Why:   t("adv.hostlist-prune.why"),
 			How: []string{
-				"sudo cp /etc/unwall/autohostlist.txt /etc/unwall/autohostlist.bak",
-				"sudo truncate -s0 /etc/unwall/autohostlist.txt",
-				"sudo systemctl restart unwall",
+				"sudo cp /etc/c.unwall/autohostlist.txt /etc/c.unwall/autohostlist.bak",
+				"sudo truncate -s0 /etc/c.unwall/autohostlist.txt",
+				"sudo systemctl restart c.unwall",
 				t("adv.hostlist-prune.s1"),
 			},
 			Gain:   t("adv.hostlist-prune.gain"),
-			Revert: []string{"sudo cp /etc/unwall/autohostlist.bak /etc/unwall/autohostlist.txt"},
+			Revert: []string{"sudo cp /etc/c.unwall/autohostlist.bak /etc/c.unwall/autohostlist.txt"},
 		})
-		if unwall.AutoHostlistN > 800 {
+		if c.unwall.AutoHostlistN > 800 {
 			out.push(Advice{
 				ID: "hostlist-manual", Priority: 4, Category: catDPI,
 				Title: t("adv.hostlist-manual.title"),
-				Why:   t("adv.hostlist-manual.why", unwall.AutoHostlistN),
+				Why:   t("adv.hostlist-manual.why", c.unwall.AutoHostlistN),
 				How: []string{t("adv.hostlist-manual.s1"),
 					"unwallctl config set HOSTLIST_MODE=manual",
-					"sudo systemctl restart unwall"},
+					"sudo systemctl restart c.unwall"},
 				Gain:   t("adv.hostlist-manual.gain"),
 				Revert: []string{"unwallctl config set HOSTLIST_MODE=auto"},
 			})
 		}
 	}
-	if unwall.GatewayMode {
+	if c.unwall.GatewayMode {
 		out.push(Advice{
 			ID: "gateway-off", Priority: 4, Category: catDPI,
 			Title: t("adv.gateway-off.title"), Why: t("adv.gateway-off.why"),
-			How:  []string{"unwallctl config set GATEWAY_MODE=0", "sudo systemctl restart unwall"},
+			How:  []string{"unwallctl config set GATEWAY_MODE=0", "sudo systemctl restart c.unwall"},
 			Gain: t("adv.gateway-off.gain"),
 		})
 	}
 	var nfqDrops int64
-	for _, queue := range result.Env.NFQueue.Queues {
+	for _, queue := range c.result.Env.NFQueue.Queues {
 		nfqDrops += queue.QueueDropped + queue.UserDropped
 	}
 	if nfqDrops > 0 {
@@ -861,7 +929,7 @@ func GenerateAdvice(result Result, cfg config.Config) []Advice {
 		})
 	}
 	quicBlocked, quicTotal := 0, 0
-	for _, verdict := range result.DPI {
+	for _, verdict := range c.result.DPI {
 		if verdict.QUIC == "" {
 			continue
 		}
@@ -876,30 +944,33 @@ func GenerateAdvice(result Result, cfg config.Config) []Advice {
 			Title: t("adv.quic.title"), Why: t("adv.quic.why"),
 			How: []string{t("adv.quic.s1"),
 				"unwallctl config set PORTS_UDP=50000-50100",
-				"sudo systemctl restart unwall && nabiz dpi", t("adv.quic.s2")},
+				"sudo systemctl restart c.unwall && nabiz dpi", t("adv.quic.s2")},
 			Gain: t("adv.quic.gain"),
 		})
 	}
 
+}
+
+func (c adviceCtx) adviseFirewall(out *adviceList) {
 	// --- 8. firewall / ipv6 --------------------------------------------------------------
-	if result.Env.Firewall.BlockedFrag > 0 {
+	if c.result.Env.Firewall.BlockedFrag > 0 {
 		out.push(Advice{
 			ID: "ufw-icmp", Priority: 2, Category: catSecurity,
 			Title: t("adv.ufw-icmp.title"),
-			Why:   t("adv.ufw-icmp.why", result.Env.Firewall.BlockedFrag),
+			Why:   t("adv.ufw-icmp.why", c.result.Env.Firewall.BlockedFrag),
 			How:   []string{t("adv.ufw-icmp.s1"), t("adv.ufw-icmp.s2")},
 			Gain:  t("adv.ufw-icmp.gain"),
 		})
 	}
 	switch {
-	case result.Env.IPv6.Broken():
+	case c.result.Env.IPv6.Broken():
 		out.push(Advice{
 			ID: "ipv6-broken", Priority: 2, Category: catApp,
 			Title: t("adv.ipv6-broken.title"), Why: t("adv.ipv6-broken.why"),
 			How:  []string{t("adv.ipv6-broken.s1"), t("adv.ipv6-broken.s2")},
 			Gain: t("adv.ipv6-broken.gain"),
 		})
-	case !result.Env.IPv6.HasAddress && result.Env.IPv6.DNSHasAAAA:
+	case !c.result.Env.IPv6.HasAddress && c.result.Env.IPv6.DNSHasAAAA:
 		out.push(Advice{
 			ID: "ipv6-missing", Priority: 5, Category: catApp,
 			Title: t("adv.ipv6-missing.title"), Why: t("adv.ipv6-missing.why"),
@@ -907,8 +978,11 @@ func GenerateAdvice(result Result, cfg config.Config) []Advice {
 		})
 	}
 
+}
+
+func (c adviceCtx) adviseISP(out *adviceList) {
 	// --- 9. ISP ------------------------------------------------------------------------------
-	if hop, ok := firstLossyHop(result); ok {
+	if hop, ok := firstLossyHop(c.result); ok {
 		out.push(Advice{
 			ID: "isp-evidence", Priority: 2, Category: catISP,
 			Title: t("adv.isp-evidence.title"), Why: t("adv.isp-evidence.why", hop.TTL, hop.IP),
@@ -917,24 +991,27 @@ func GenerateAdvice(result Result, cfg config.Config) []Advice {
 			Gain: t("adv.isp-evidence.gain"),
 		})
 	}
-	if internet != nil && internet.Avg > cfg.Thresholds.RTTBad {
+	if c.internet != nil && c.internet.Avg > c.cfg.Thresholds.RTTBad {
 		out.push(Advice{
 			ID: "high-rtt", Priority: 4, Category: catISP,
-			Title: t("adv.high-rtt.title", internet.Avg), Why: t("adv.high-rtt.why"),
+			Title: t("adv.high-rtt.title", c.internet.Avg), Why: t("adv.high-rtt.why"),
 			How: []string{"nabiz path", t("adv.high-rtt.s1"), t("adv.high-rtt.s2")},
 		})
 	}
 
+}
+
+func (c adviceCtx) adviseMethod(out *adviceList) {
 	// --- 10. method ----------------------------------------------------------------------------
-	if result.Score >= 80 && result.Baseline == nil {
+	if c.result.Score >= 80 && c.result.Baseline == nil {
 		out.push(Advice{
 			ID: "baseline", Priority: 5, Category: catMethod,
-			Title: t("adv.baseline.title"), Why: t("adv.baseline.why", result.Score),
+			Title: t("adv.baseline.title"), Why: t("adv.baseline.why", c.result.Score),
 			How:  []string{t("adv.baseline.s1")},
 			Gain: t("adv.baseline.gain"),
 		})
 	}
-	if history.Drops > 0 || (internet != nil && internet.LossPct > 0) {
+	if c.history.Drops > 0 || (c.internet != nil && c.internet.LossPct > 0) {
 		out.push(Advice{
 			ID: "monitor-long", Priority: 4, Category: catMethod,
 			Title: t("adv.monitor-long.title"), Why: t("adv.monitor-long.why"),
@@ -944,7 +1021,7 @@ func GenerateAdvice(result Result, cfg config.Config) []Advice {
 	}
 	// Once a baseline exists this is no longer advice, it is the workflow the
 	// tool is already running: every later result carries a delta against it.
-	if result.Baseline == nil {
+	if c.result.Baseline == nil {
 		out.push(Advice{
 			ID: "measure-first", Priority: 5, Category: catMethod,
 			Title: t("adv.measure-first.title"), Why: t("adv.measure-first.why"),
@@ -959,8 +1036,6 @@ func GenerateAdvice(result Result, cfg config.Config) []Advice {
 		})
 	}
 
-	SortAdvice(out.items)
-	return out.items
 }
 
 // deadHostlistEntries are hostlist names the DNS probe could not resolve.

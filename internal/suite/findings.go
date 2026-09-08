@@ -461,8 +461,8 @@ func orderFindings(items []Finding) []Finding {
 	for _, finding := range items {
 		byKey[finding.Key] = finding
 	}
-	rank := map[string]int{}   // root -> best (lowest) level among its group
-	seen := map[string]int{}   // root -> first appearance, to keep this stable
+	rank := map[string]int{} // root -> best (lowest) level among its group
+	seen := map[string]int{} // root -> first appearance, to keep this stable
 	for index, finding := range items {
 		root := RootCause(finding.Key, byKey)
 		if level, ok := rank[root]; !ok || levelOrder[finding.Level] < level {
