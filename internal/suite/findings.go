@@ -98,7 +98,15 @@ func deriveFindings(result Result, cfg config.Config) []Finding {
 		if history.Drops > 5 || history.DownPct() > 1 {
 			level = "bad"
 		}
-		f.addText(level, "link-drops", "link", title, i18n.T("fnd.link-drops.hint"))
+		hint := i18n.T("fnd.link-drops.hint")
+		// A change made mid-boot cannot lower a count that only goes up, so say
+		// how long it has been quiet and stop calling a settled link a fault.
+		if history.Settled() {
+			level = "info"
+			title += i18n.T("fnd.link-drops.quiet", history.QuietMinutes())
+			hint = i18n.T("fnd.link-drops.quiet-hint")
+		}
+		f.addText(level, "link-drops", "link", title, hint)
 	} else if link.CarrierUps > 3 {
 		f.add("bad", "carrier-flaps", "link", link.CarrierUps)
 	}
@@ -114,7 +122,12 @@ func deriveFindings(result Result, cfg config.Config) []Finding {
 			i18n.T("fnd.link-regression.hint"))
 	}
 	if history.Downshifts > 0 {
-		f.add("bad", "link-downshift", "link", history.Downshifts, history.DownshiftNote)
+		// same cumulative-counter problem as the drops above
+		level := "bad"
+		if history.Settled() {
+			level = "info"
+		}
+		f.add(level, "link-downshift", "link", history.Downshifts, history.DownshiftNote)
 	}
 	if result.Env.EEE.Active && (history.Drops > 3 || link.CarrierUps > 3) {
 		f.add("warn", "eee-active", "link")

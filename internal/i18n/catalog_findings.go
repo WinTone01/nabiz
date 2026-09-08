@@ -13,6 +13,8 @@ func init() {
 		"fnd.link-drops.span":          {", over %.0f min, one every %.1f min", ", %.0f dakikada, ortalama %.1f dk arayla"},
 		"fnd.link-drops.down":          {"; %.0f s offline in total (%.1f%%), longest %.0f s", "; toplam %.0f sn kopuk (%%%.1f), en uzunu %.0f sn"},
 		"fnd.link-drops.hint":          {"each drop kills every open connection: calls and games go down with it", "her düşüş tam kopma demektir: açık tüm bağlantılar kopar, oyun ve görüşme düşer"},
+		"fnd.link-drops.quiet":        {"; but no drop for the last %.0f min", "; ancak son %.0f dakikadır hiç düşme yok"},
+		"fnd.link-drops.quiet-hint":   {"the count covers the whole boot and cannot fall, so it still carries the old rate; the quiet stretch is what says the link is behaving now", "sayaç tüm açılışı kapsar ve düşemez, o yüzden eski hızı taşımaya devam eder; şu an linkin düzgün olduğunu söyleyen şey sessiz geçen süredir"},
 		"fnd.link-downshift.title":     {"kernel reported downshift %d times: %s", "çekirdek %d kez downshift bildirdi: %s"},
 		"fnd.link-downshift.hint":      {"gigabit negotiation keeps failing so the speed is reduced. 1000BASE-T uses all four pairs, 100BASE-TX only two - classically a broken pair, but a driver regression produces the same message", "gigabit anlaşması tutmadığı için hız düşürülüyor. 1000BASE-T dört çiftin dördünü, 100BASE-TX yalnızca ikisini kullanır - klasik olarak kopuk bir çift demektir, ama sürücü regresyonu da aynı mesajı üretir"},
 		"fnd.link-regression.title":    {"link drops started recently: %s", "düşmeler yakın zamanda başladı: %s"},

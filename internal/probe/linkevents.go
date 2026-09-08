@@ -52,6 +52,31 @@ func (h LinkHistory) SpanMinutes() float64 {
 	return h.WindowTo.Sub(h.WindowFrom).Minutes()
 }
 
+// QuietMinutes is how long the link has held since the last drop. A cumulative
+// count cannot answer "did the change I just made work?" - it only ever grows,
+// so a fix looks identical to no fix until the next reboot. This is the number
+// that moves the moment the flapping stops.
+func (h LinkHistory) QuietMinutes() float64 {
+	var lastDown time.Time
+	for _, event := range h.Events {
+		if event.Kind == "down" && event.At.After(lastDown) {
+			lastDown = event.At
+		}
+	}
+	if lastDown.IsZero() || h.WindowTo.IsZero() || h.WindowTo.Before(lastDown) {
+		return 0
+	}
+	return h.WindowTo.Sub(lastDown).Minutes()
+}
+
+// Settled reports that the link has been quiet for long enough that the drop
+// rate seen earlier in this boot no longer describes it: five times the mean
+// gap between drops, and at least twenty minutes.
+func (h LinkHistory) Settled() bool {
+	quiet := h.QuietMinutes()
+	return h.Drops > 2 && quiet >= 20 && (h.MeanGapMin <= 0 || quiet >= 5*h.MeanGapMin)
+}
+
 // DownPct is the share of the observed window spent with no carrier.
 func (h LinkHistory) DownPct() float64 {
 	span := h.SpanMinutes() * 60

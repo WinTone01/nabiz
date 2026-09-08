@@ -132,7 +132,10 @@ func GenerateAdvice(result Result, cfg config.Config) []Advice {
 	}
 
 	// --- 2. physical layer -------------------------------------------------
-	if history.Drops > 3 || link.CarrierUps > 3 {
+	// A link that has been quiet for a long stretch is no longer flapping, whatever
+	// the boot-long counter still says; recommending a cable swap on the strength
+	// of drops that stopped an hour ago undoes the change that stopped them.
+	if (history.Drops > 3 || link.CarrierUps > 3) && !history.Settled() {
 		priority := 1
 		if kernelRegression {
 			// the same cable was quiet for hundreds of hours on the old kernel
@@ -182,7 +185,7 @@ func GenerateAdvice(result Result, cfg config.Config) []Advice {
 			Gain:  t("adv.switch-bypass.gain"),
 		})
 	}
-	if history.Downshifts > 3 && !kernelRegression {
+	if history.Downshifts > 3 && !kernelRegression && !history.Settled() {
 		out.push(Advice{
 			ID: "pin-100full", Priority: 2, Category: catPhysical,
 			Title: t("adv.pin-100full.title"),
@@ -197,7 +200,7 @@ func GenerateAdvice(result Result, cfg config.Config) []Advice {
 			Revert: []string{"sudo ethtool -s " + iface + " autoneg on advertise 0x03f"},
 		})
 	}
-	if result.Env.EEE.Active && (history.Drops > 3 || link.CarrierUps > 3) {
+	if result.Env.EEE.Active && (history.Drops > 3 || link.CarrierUps > 3) && !history.Settled() {
 		out.push(Advice{
 			ID: "eee-off", Priority: 1, Category: catPhysical,
 			Title: t("adv.eee-off.title"),
