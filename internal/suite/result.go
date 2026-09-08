@@ -63,6 +63,26 @@ type Finding struct {
 	Title  string `json:"title"`
 	Hint   string `json:"hint,omitempty"`
 	Source string `json:"source,omitempty"`
+	// Because names the finding this one is a consequence of. One fault shows
+	// up through several symptoms - a bad pair in a cable drops the link, fails
+	// gigabit negotiation and leaves the link at 100 Mbit - and without the link
+	// between them the report reads as three problems and the score is charged
+	// three times for one.
+	Because string `json:"because,omitempty"`
+}
+
+// RootCause walks the Because chain to the finding that explains this one.
+func RootCause(key string, byKey map[string]Finding) string {
+	seen := map[string]bool{}
+	for !seen[key] {
+		seen[key] = true
+		finding, ok := byKey[key]
+		if !ok || finding.Because == "" {
+			return key
+		}
+		key = finding.Because
+	}
+	return key // a cycle: stop rather than loop
 }
 
 // Advice is one actionable recommendation, ranked and reversible.

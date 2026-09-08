@@ -461,10 +461,16 @@ func printResult(result suite.Result) {
 	fmt.Println(sTitle.Render(i18n.T("sec.findings")))
 	for _, finding := range result.Findings {
 		mark := map[string]string{"bad": "!!", "warn": " !", "info": " ·", "ok": " +"}[finding.Level]
-		fmt.Printf(" %s %s  %s\n", levelStyle(finding.Level).Render(mark),
-			sTitle.Render(finding.Key), finding.Title)
+		// a symptom is printed under the fault it belongs to, so the list reads
+		// as the handful of problems it is rather than a wall of red
+		indent, key := "", sTitle.Render(finding.Key)
+		if finding.Because != "" {
+			indent, key = "   ", sDim.Render("└ "+finding.Key)
+		}
+		fmt.Printf("%s %s %s  %s\n", indent, levelStyle(finding.Level).Render(mark),
+			key, finding.Title)
 		if finding.Hint != "" {
-			fmt.Println("      " + sDim.Render(finding.Hint))
+			fmt.Println(indent + "      " + sDim.Render(finding.Hint))
 		}
 	}
 	printAdvice(result, 3)

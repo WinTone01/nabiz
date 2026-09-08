@@ -70,6 +70,39 @@ func optional(key string) string {
 	return i18n.T(key)
 }
 
+// causes says which finding explains which. The left side is a symptom, the
+// right side the thing to actually fix; a symptom whose cause is not in this
+// run stands on its own.
+var causes = map[string]string{
+	"link-downshift":  "link-drops",
+	"link-speed":      "link-downshift",
+	"eee-active":      "link-drops",
+	"eee-unknown":     "link-drops",
+	"aspm-blocked":    "link-drops",
+	"aspm-unverified": "link-drops",
+	"carrier-flaps":   "link-drops",
+	"link-regression": "link-drops",
+	"loss-burst":      "link-drops",
+	"bpftune-buffers": "bufferbloat-bad",
+	"qdisc-drops":     "bufferbloat-bad",
+}
+
+// linkCauses attaches each symptom to the finding that explains it, but only
+// when that finding is actually present: on a link that never dropped, a 100
+// Mbit negotiation is its own problem and should be reported as one.
+func linkCauses(items []Finding) []Finding {
+	present := make(map[string]bool, len(items))
+	for _, finding := range items {
+		present[finding.Key] = true
+	}
+	for index, finding := range items {
+		if cause, ok := causes[finding.Key]; ok && present[cause] && cause != finding.Key {
+			items[index].Because = cause
+		}
+	}
+	return items
+}
+
 func deriveFindings(result Result, cfg config.Config) []Finding {
 	var f findingList
 	limits := cfg.Thresholds
@@ -414,11 +447,54 @@ func deriveFindings(result Result, cfg config.Config) []Finding {
 	if len(f.items) == 0 {
 		f.add("ok", "clean", "")
 	}
-	order := map[string]int{"bad": 0, "warn": 1, "info": 2, "ok": 3}
-	sort.SliceStable(f.items, func(i, j int) bool {
-		return order[f.items[i].Level] < order[f.items[j].Level]
+	return orderFindings(linkCauses(f.items))
+}
+
+var levelOrder = map[string]int{"bad": 0, "warn": 1, "info": 2, "ok": 3}
+
+// orderFindings groups each symptom under the fault it belongs to and ranks the
+// groups by their most serious member. Sorting by level alone splits a group
+// apart - a warning symptom jumps above the red fault that causes it - and the
+// reader has to reassemble the story from a list that no longer tells it.
+func orderFindings(items []Finding) []Finding {
+	byKey := make(map[string]Finding, len(items))
+	for _, finding := range items {
+		byKey[finding.Key] = finding
+	}
+	rank := map[string]int{}   // root -> best (lowest) level among its group
+	seen := map[string]int{}   // root -> first appearance, to keep this stable
+	for index, finding := range items {
+		root := RootCause(finding.Key, byKey)
+		if level, ok := rank[root]; !ok || levelOrder[finding.Level] < level {
+			rank[root] = levelOrder[finding.Level]
+		}
+		if _, ok := seen[root]; !ok {
+			seen[root] = index
+		}
+	}
+	depth := func(key string) int {
+		steps := 0
+		for finding, ok := byKey[key]; ok && finding.Because != "" && steps < 8; finding, ok = byKey[key] {
+			key = finding.Because
+			steps++
+		}
+		return steps
+	}
+	sort.SliceStable(items, func(i, j int) bool {
+		rootI, rootJ := RootCause(items[i].Key, byKey), RootCause(items[j].Key, byKey)
+		if rootI != rootJ {
+			if rank[rootI] != rank[rootJ] {
+				return rank[rootI] < rank[rootJ]
+			}
+			return seen[rootI] < seen[rootJ]
+		}
+		// inside a group: the fault first, then its symptoms by severity
+		if di, dj := depth(items[i].Key), depth(items[j].Key); di != dj {
+			return di < dj
+		}
+		return levelOrder[items[i].Level] < levelOrder[items[j].Level]
 	})
-	return f.items
+	return items
 }
 
 // kernelRegressionText re-renders the stored numbers in the active language,
@@ -514,6 +590,50 @@ func joinN(items []string, n int) string {
 	return strings.Join(items, ", ")
 }
 
+// maxFindingPenalty bounds how far findings can move the score. Past this point
+// the measured numbers should be doing the talking: a run cannot be made
+// arbitrarily bad by the tool happening to know about more things to check.
+const maxFindingPenalty = 40
+
+// findingPenalty charges once per distinct problem rather than once per finding.
+//
+// Summing every finding made the score a function of how many symptoms the tool
+// emits instead of how bad the connection is. One bad pair in a cable produces
+// link-drops, link-downshift and link-speed, so it was charged three times,
+// while an unrelated single fault cost a third as much - and adding any new
+// finding to the code quietly lowered the score of every machine that had the
+// condition already, which made saved runs incomparable across versions.
+func findingPenalty(findings []Finding) float64 {
+	byKey := make(map[string]Finding, len(findings))
+	for _, finding := range findings {
+		byKey[finding.Key] = finding
+	}
+	worst := map[string]float64{}
+	for _, finding := range findings {
+		weight := 0.0
+		switch finding.Level {
+		case "bad":
+			weight = 8
+		case "warn":
+			weight = 3
+		default:
+			continue
+		}
+		root := RootCause(finding.Key, byKey)
+		if weight > worst[root] {
+			worst[root] = weight
+		}
+	}
+	total := 0.0
+	for _, weight := range worst {
+		total += weight
+	}
+	if total > maxFindingPenalty {
+		total = maxFindingPenalty
+	}
+	return total
+}
+
 func scoreRun(result Result) (float64, string) {
 	internet := result.InternetLatency()
 	var score float64 = 100
@@ -525,14 +645,7 @@ func scoreRun(result Result) (float64, string) {
 		score = stats.StabilityScore(internet.LossPct, internet.Jitter, internet.P95,
 			internet.Avg, bloat, haveBloat)
 	}
-	for _, finding := range result.Findings {
-		switch finding.Level {
-		case "bad":
-			score -= 8
-		case "warn":
-			score -= 3
-		}
-	}
+	score -= findingPenalty(result.Findings)
 	if score < 0 {
 		score = 0
 	}
