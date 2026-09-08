@@ -14,10 +14,13 @@ import (
 // at runtime as "fnd." + key + ".title" and no compiler sees them.
 
 // literalKey matches a translation key written out in full at a call site.
-// The prefixes are the ones the catalogs actually use. "apply." and "monitor."
-// are deliberately absent: they collide with the filenames apply.sh and
-// monitor.jsonl, and no catalog key starts with them.
-var literalKey = regexp.MustCompile(`"((?:fnd|adv|ui|err|cat)\.[a-zA-Z0-9._:-]+)"`)
+// literalKey matches a translation key written out in full at a call site.
+// Filenames share the shape (apply.sh, monitor.jsonl), so anything ending in a
+// known extension is skipped rather than narrowing the prefix list - the
+// catalog really does define apply.* and monitor.* keys.
+var literalKey = regexp.MustCompile(`"((?:fnd|adv|ui|err|cat|apply|monitor|sec|misc)\.[a-zA-Z0-9._:-]+)"`)
+
+var filenameLike = regexp.MustCompile(`\.(sh|json|jsonl|txt|conf|md|log|service|yaml|yml|go)$`)
 
 // findingKey matches the short key given to findingList.add, which becomes
 // "fnd.<key>.title" only at runtime. addText is excluded on purpose: it takes
@@ -28,7 +31,7 @@ func TestEveryKeyUsedInCodeExists(t *testing.T) {
 	root := repoRoot(t)
 	var missing []string
 	note := func(key, where string) {
-		if key == "" || Has(key) {
+		if key == "" || Has(key) || filenameLike.MatchString(key) {
 			return
 		}
 		missing = append(missing, key+"  ("+where+")")

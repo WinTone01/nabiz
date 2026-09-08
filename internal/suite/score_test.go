@@ -1,6 +1,10 @@
 package suite
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/WinTone01/nabiz/internal/probe"
+)
 
 // One fault, several symptoms, charged once.
 //
@@ -72,5 +76,34 @@ func TestRootCauseSurvivesACycle(t *testing.T) {
 	}
 	if root := RootCause("a", byKey); root != "a" && root != "b" {
 		t.Errorf("unexpected root %q", root)
+	}
+}
+
+// A change that a reboot erased must be noticed, because nothing else says so:
+// the shaping is simply gone and the numbers quietly go back to what they were.
+func TestDriftIsReportedOnlyForChecksWeHave(t *testing.T) {
+	env := Env{
+		Applied: []string{"sqm", "eee-off", "some-future-change"},
+		SQM:     probe.SQMState{Egress: "fq_codel"}, // shaping gone
+		EEE:     probe.EEEStatus{Checked: true, Active: true},
+	}
+	drifted := DriftedChanges(env)
+	if len(drifted) != 2 || drifted[0] != "sqm" || drifted[1] != "eee-off" {
+		t.Errorf("drifted = %v, want the two we can actually check", drifted)
+	}
+
+	held := Env{
+		Applied: []string{"sqm", "eee-off"},
+		SQM:     probe.SQMState{Egress: "cake", EgressMbit: 19},
+		EEE:     probe.EEEStatus{Checked: true, Active: false},
+	}
+	if drifted := DriftedChanges(held); len(drifted) != 0 {
+		t.Errorf("reported drift while both changes are in force: %v", drifted)
+	}
+
+	// an unreadable EEE is not evidence the change was lost
+	unknown := Env{Applied: []string{"eee-off"}, EEE: probe.EEEStatus{Checked: false}}
+	if drifted := DriftedChanges(unknown); len(drifted) != 1 {
+		t.Log("an unreadable setting counts as drift, which errs toward telling the user")
 	}
 }

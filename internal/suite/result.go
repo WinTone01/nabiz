@@ -29,6 +29,8 @@ type Env struct {
 	ASPM        probe.ASPMStatus            `json:"aspm"`
 	Journal     probe.JournalStorage        `json:"journal"`
 	SQM         probe.SQMState              `json:"sqm"`
+	Applied     []string                    `json:"applied,omitempty"`
+	Drifted     []string                    `json:"drifted,omitempty"`
 	IPv6        probe.IPv6Status            `json:"ipv6"`
 	Firewall    probe.FirewallICMP          `json:"firewall_icmp"`
 	NFQueue     probe.NFQueueInfo           `json:"nfqueue"`

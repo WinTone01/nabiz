@@ -961,6 +961,75 @@ func cmdReport(args []string) error {
 	return nil
 }
 
+// measureEffect repeats the measurement a change promised to move.
+//
+// The connectivity check only asks whether the internet still works, which a
+// change can pass while making the very thing it was meant to fix worse - a
+// shaper set too low keeps every packet flowing and halves the throughput. This
+// puts the line back under load and reads the same number again.
+func measureEffect(ctx context.Context, snapshot *apply.Snapshot, changes []apply.Change) error {
+	var promised []apply.Change
+	for _, change := range changes {
+		if change.Effect != nil {
+			promised = append(promised, change)
+		}
+	}
+	if len(promised) == 0 {
+		return nil
+	}
+	fmt.Println(sDim.Render(i18n.T("apply.measuring")))
+	after := suite.Run(ctx, config.Load(), "load", nil)
+	if after.Load == nil {
+		fmt.Println(sWarn.Render(i18n.T("apply.measurefailed")))
+		return nil
+	}
+
+	regressed := false
+	for _, change := range promised {
+		value, ok := metricValue(after, change.Effect.Metric)
+		if !ok {
+			continue
+		}
+		line := i18n.T("apply.effect", change.ID, change.Effect.Before, value)
+		if change.Effect.Worse(value) {
+			regressed = true
+			fmt.Println(sBad.Render(line))
+			continue
+		}
+		if change.Effect.Improvement(value) > 0 {
+			fmt.Println(sOK.Render(line))
+		} else {
+			fmt.Println(sDim.Render(line))
+		}
+	}
+	if !regressed {
+		return nil
+	}
+	fmt.Println(sBad.Render(i18n.T("apply.effectworse")))
+	out, err := apply.Rollback(ctx, snapshot.Dir)
+	if strings.TrimSpace(out) != "" {
+		fmt.Println(sDim.Render(strings.TrimSpace(out)))
+	}
+	return err
+}
+
+// metricValue reads one promised number out of a finished load run.
+func metricValue(result suite.Result, metric string) (float64, bool) {
+	if result.Load == nil {
+		return 0, false
+	}
+	switch metric {
+	case apply.MetricBufferbloat:
+		return result.Load.WorstDelta(), true
+	case apply.MetricUploadRetrans:
+		if result.Load.Upload == nil {
+			return 0, false
+		}
+		return result.Load.Upload.SNMPDelta.RetransPct, true
+	}
+	return 0, false
+}
+
 // --- apply / rollback --------------------------------------------------------
 
 func cmdApply(args []string) error {
@@ -970,6 +1039,7 @@ func cmdApply(args []string) error {
 	safe := flags.Bool("safe", false, "apply every change that cannot interrupt the link")
 	includeLink := flags.Bool("include-link", false, "also allow changes that renegotiate the link")
 	noVerify := flags.Bool("no-verify", false, "skip the connectivity check and auto-rollback")
+	measure := flags.Bool("measure", false, "re-run the load test afterwards and roll back a change that made things worse")
 	assumeYes := flags.Bool("y", false, "skip the confirmation")
 	if err := flags.Parse(args); err != nil {
 		return err
@@ -1068,6 +1138,11 @@ func cmdApply(args []string) error {
 		return outcome.Err
 	default:
 		fmt.Println(sOK.Render(i18n.T("apply.ok")))
+		if *measure {
+			if err := measureEffect(ctx, snapshot, selected); err != nil {
+				return err
+			}
+		}
 		// re-read the machine into the stored run, otherwise the next
 		// `nabiz apply --list` still offers what was just applied
 		suite.RefreshEnv(&result, config.Load())

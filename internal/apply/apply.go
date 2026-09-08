@@ -42,12 +42,41 @@ type Change struct {
 	Files   []string `json:"files,omitempty"` // snapshotted before applying
 	Apply   []string `json:"apply"`           // shell lines
 	Restore []string `json:"restore"`         // inverse shell lines
+	// Effect names what this change is supposed to improve, with the value
+	// measured before it ran. The connectivity check afterwards only asks
+	// whether the internet still works, which a change can pass while making
+	// the thing it was meant to fix worse.
+	Effect *Effect `json:"effect,omitempty"`
 	// Services this change touches. Their unit state is recorded before the
 	// batch runs and checked afterwards: a change that leaves a service failing
 	// is rolled back even when the network still works, which is exactly how a
 	// broken bpftune unit survived the connectivity check.
 	Services []string `json:"services,omitempty"`
 }
+
+// Metrics a change can promise to move. Both come from the load suite, which is
+// the only run that puts the line under enough pressure for either to mean
+// anything.
+const (
+	MetricBufferbloat   = "bufferbloat"
+	MetricUploadRetrans = "upload-retransmission"
+)
+
+// Effect is a measurement to repeat once a change is in place.
+type Effect struct {
+	Metric string  `json:"metric"`
+	Before float64 `json:"before"`
+}
+
+// Worse reports that the re-measured value is clearly worse than before, not
+// merely different. Run-to-run variation on a live line is easily ten percent,
+// and rolling a change back over noise teaches people to pass --no-verify.
+func (e Effect) Worse(after float64) bool {
+	return after > e.Before*1.15+1
+}
+
+// Improvement is how much the number moved, positive when it got better.
+func (e Effect) Improvement(after float64) float64 { return e.Before - after }
 
 // Snapshot is one applied batch, kept so it can be rolled back later.
 type Snapshot struct {
@@ -382,8 +411,13 @@ func extraChanges(result suite.Result, iface string, sysctls map[string]string,
 			// Unlike bpftune-vs-physical below, this one only stops the daemon:
 			// the sysctls it already set stay where they are, so undoing it is
 			// just starting the service again.
+			retrans := 0.0
+			if result.Load != nil && result.Load.Upload != nil {
+				retrans = result.Load.Upload.SNMPDelta.RetransPct
+			}
 			add(Change{
 				ID: advice.ID, Title: advice.Title, Risk: RiskMedium,
+				Effect:   &Effect{Metric: MetricUploadRetrans, Before: retrans},
 				Apply:    []string{"systemctl disable --now bpftune"},
 				Restore:  []string{"systemctl enable --now bpftune"},
 				Services: []string{"bpftune"},
@@ -553,9 +587,14 @@ func sqmChange(result suite.Result, iface string, sysctls map[string]string) (Ch
 		quoted = append(quoted, "'"+line+"'")
 	}
 
+	effect := &Effect{Metric: MetricBufferbloat}
+	if result.Load != nil {
+		effect.Before = result.Load.WorstDelta()
+	}
 	return Change{
 		ID: "sqm", Risk: RiskMedium,
-		Files: []string{sqmDispatcher},
+		Effect: effect,
+		Files:  []string{sqmDispatcher},
 		Apply: []string{
 			"mkdir -p /etc/NetworkManager/dispatcher.d",
 			"printf '%s\\n' " + strings.Join(quoted, " ") + " > " + sqmDispatcher,

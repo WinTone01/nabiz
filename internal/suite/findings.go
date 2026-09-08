@@ -195,6 +195,9 @@ func deriveFindings(result Result, cfg config.Config) []Finding {
 		(history.Drops > 0 || link.CarrierUps > 1) {
 		f.add("warn", "journal-volatile", "kernel", journal.Boots)
 	}
+	if drifted := DriftedChanges(result.Env); len(drifted) > 0 {
+		f.add("warn", "change-drifted", "kernel", strings.Join(drifted, ", "))
+	}
 	if link.Wireless && link.SignalDBm < -70 && link.SignalDBm != 0 {
 		f.add("warn", "wifi-signal", "link", link.SignalDBm)
 	}
@@ -664,4 +667,37 @@ func SysctlInt(value string, index int) int64 {
 		return 0
 	}
 	return number
+}
+
+// A fix that does not survive a reboot is not a fix, and nothing about the
+// machine says so afterwards: the shaping is simply gone, the bufferbloat is
+// back, and the last thing the user remembers is applying a change that worked.
+// Several of the changes this tool makes live only in kernel state - a qdisc, a
+// PHY register - and are erased by a reboot, a suspend or a renegotiation.
+
+// driftCheck knows how to tell whether one applied change is still in force.
+// Changes absent from this table are not checked rather than guessed at.
+var driftCheck = map[string]func(Env) bool{
+	"sqm":             func(env Env) bool { return env.SQM.EgressShaped() || env.SQM.IngressShaped() },
+	"cake-gaming":     func(env Env) bool { return env.SQM.EgressShaped() },
+	"eee-off":         func(env Env) bool { return env.EEE.Checked && !env.EEE.Active },
+	"bpftune-retrans": func(env Env) bool { return !env.Bpftune.Running },
+	"bpftune-tuner-off": func(env Env) bool {
+		return !env.Bpftune.Running || env.Bpftune.Overridden
+	},
+}
+
+// DriftedChanges lists changes recorded as applied that are no longer in force.
+func DriftedChanges(env Env) []string {
+	var out []string
+	for _, id := range env.Applied {
+		check, known := driftCheck[id]
+		if !known {
+			continue
+		}
+		if !check(env) {
+			out = append(out, id)
+		}
+	}
+	return out
 }

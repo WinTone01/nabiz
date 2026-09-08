@@ -72,6 +72,10 @@ func SnapshotEnv(cfg config.Config) Env {
 	env.ASPM = probe.ReadASPM(env.Link.Iface)
 	env.Journal = probe.ReadJournalStorage()
 	env.SQM = probe.ReadSQM(env.Link.Iface)
+	for id := range config.ChangesInForce() {
+		env.Applied = append(env.Applied, id)
+	}
+	sort.Strings(env.Applied)
 	env.IPv6 = probe.CheckIPv6(context.Background(), 3*time.Second)
 	env.Firewall = probe.CheckFirewallICMP()
 	// comparing boots is the only way to tell "this always happened" from

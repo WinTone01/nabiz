@@ -34,6 +34,8 @@ func init() {
 		"fnd.aspm-unverified.hint":     {"firmware that never enabled ASPM refuses the same call, so the message alone decides nothing; run sudo nabiz deep, or lspci -vv, and look for the LnkCtl line", "ASPM'i hiç açmamış bir firmware de aynı isteği reddeder, yani mesaj tek başına bir şey söylemez; sudo nabiz deep veya lspci -vv ile LnkCtl satırına bakın"},
 		"fnd.journal-volatile.title":   {"the journal does not survive reboots, so only %d boots can be read", "journal yeniden başlatmayı atlatmıyor, bu yüzden yalnızca %d açılış okunabiliyor"},
 		"fnd.journal-volatile.hint":    {"earlier kernels cannot be compared: with no stored log they score zero drops out of zero observed minutes, which reads as flawless", "önceki çekirdekler karşılaştırılamaz: kayıt olmayınca sıfır gözlenen dakikada sıfır düşme çıkar ve bu kusursuz görünür"},
+		"fnd.change-drifted.title":     {"a change you applied is no longer in force: %s", "uyguladığınız bir değişiklik artık yürürlükte değil: %s"},
+		"fnd.change-drifted.hint":      {"a qdisc or a PHY setting lives in kernel state and is erased by a reboot, a suspend or a renegotiation; re-apply it, and this time install it so it comes back on its own", "qdisc veya PHY ayarı çekirdek durumunda yaşar; yeniden başlatma, uyku veya yeniden anlaşma onu siler. Tekrar uygulayın, bu sefer kendiliğinden geri gelecek şekilde kurun"},
 		"fnd.wifi-signal.title":        {"signal %.0f dBm - weak", "sinyal %.0f dBm - zayıf"},
 		"fnd.wifi-signal.hint":         {"expect loss and jitter; move to 5 GHz or closer to the access point", "kayıp ve jitter beklenir; 5 GHz'e geçin veya erişim noktasına yaklaşın"},
 		"fnd.nic-errors.title":         {"%s = %d (%.4f%% of packets)", "%s = %d (%%%.4f paket)"},
