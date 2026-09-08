@@ -26,6 +26,8 @@ type Env struct {
 	GoodKernel  string                      `json:"good_kernel,omitempty"`
 	KernelRegr  string                      `json:"kernel_regression,omitempty"`
 	EEE         probe.EEEStatus             `json:"eee"`
+	ASPM        probe.ASPMStatus            `json:"aspm"`
+	Journal     probe.JournalStorage        `json:"journal"`
 	IPv6        probe.IPv6Status            `json:"ipv6"`
 	Firewall    probe.FirewallICMP          `json:"firewall_icmp"`
 	NFQueue     probe.NFQueueInfo           `json:"nfqueue"`

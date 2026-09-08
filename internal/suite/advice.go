@@ -206,13 +206,57 @@ func GenerateAdvice(result Result, cfg config.Config) []Advice {
 			Risk:   t("adv.eee-off.risk"),
 			Revert: []string{"sudo ethtool --set-eee " + iface + " eee on"},
 		})
+		if !result.Env.ASPM.Blocked {
+			out.push(Advice{
+				ID: "aspm", Priority: 4, Category: catPhysical,
+				Title: t("adv.aspm.title"),
+				Why:   t("adv.aspm.why"),
+				How:   []string{t("adv.aspm.s1"), t("adv.aspm.s2")},
+				Gain:  t("adv.aspm.gain"),
+				Risk:  t("adv.aspm.risk"),
+			})
+		}
+	}
+	// Nothing else on this list can be judged across a reboot while the journal
+	// dies with the boot, so this comes before the experiments it makes readable.
+	if journal := result.Env.Journal; !journal.Persistent &&
+		(history.Drops > 0 || link.CarrierUps > 1) {
 		out.push(Advice{
-			ID: "aspm", Priority: 4, Category: catPhysical,
-			Title: t("adv.aspm.title"),
-			Why:   t("adv.aspm.why"),
-			How:   []string{t("adv.aspm.s1"), t("adv.aspm.s2")},
-			Gain:  t("adv.aspm.gain"),
-			Risk:  t("adv.aspm.risk"),
+			ID: "journal-persist", Priority: 1, Category: catPhysical,
+			Title: t("adv.journal-persist.title"),
+			Why:   t("adv.journal-persist.why", journal.Boots),
+			How: []string{
+				"sudo mkdir -p /var/log/journal",
+				"sudo systemd-tmpfiles --create --prefix /var/log/journal",
+				"sudo systemctl restart systemd-journald",
+				t("adv.journal-persist.s1"),
+			},
+			Gain:   t("adv.journal-persist.gain"),
+			Risk:   t("adv.journal-persist.risk"),
+			Revert: []string{"sudo rm -rf /var/log/journal && sudo systemctl restart systemd-journald"},
+		})
+	}
+	// When the kernel itself reported that it could not disable ASPM, this stops
+	// being a guess and outranks the other power-saving advice. Note that
+	// pcie_aspm=off is the wrong answer here: it tells the kernel to keep its
+	// hands off ASPM, which leaves the firmware's setting - the one the driver
+	// objected to - in place. Only pcie_aspm=force hands control over so the
+	// driver's own disable call can succeed.
+	if aspm := result.Env.ASPM; aspm.Blocked && !aspm.Forced() {
+		out.push(Advice{
+			ID: "aspm-force", Priority: 1, Category: catPhysical,
+			Title: t("adv.aspm-force.title"),
+			Why:   t("adv.aspm-force.why", aspm.Driver, aspm.Slot),
+			How: []string{
+				t("adv.aspm-force.s1"),
+				"sudo sed -i \"s/^GRUB_CMDLINE_LINUX_DEFAULT='/&pcie_aspm=force /\" /etc/default/grub",
+				"sudo grub-mkconfig -o /boot/grub/grub.cfg",
+				t("adv.aspm-force.s2"),
+				"journalctl -k -b | grep -c \"can't disable ASPM\"",
+			},
+			Gain:   t("adv.aspm-force.gain"),
+			Risk:   t("adv.aspm-force.risk"),
+			Revert: []string{t("adv.aspm-force.revert")},
 		})
 	}
 	if link.SpeedMbit > 0 && link.SpeedMbit <= 100 && !link.Wireless {

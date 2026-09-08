@@ -119,6 +119,22 @@ func deriveFindings(result Result, cfg config.Config) []Finding {
 	if result.Env.EEE.Active && (history.Drops > 3 || link.CarrierUps > 3) {
 		f.add("warn", "eee-active", "link")
 	}
+	// The driver tried to switch PCIe power saving off for this card and the
+	// firmware would not let it. That is a fault the machine reported about
+	// itself, so it counts whether or not the link has dropped yet.
+	if aspm := result.Env.ASPM; aspm.Blocked {
+		level := "warn"
+		if history.Drops > 3 || link.CarrierUps > 3 {
+			level = "bad"
+		}
+		f.add(level, "aspm-blocked", "link", aspm.Driver, aspm.Slot)
+	}
+	// Say out loud when the kernel question cannot be answered yet, rather than
+	// letting an unlogged kernel pass for a quiet one.
+	if journal := result.Env.Journal; !journal.Persistent &&
+		(history.Drops > 0 || link.CarrierUps > 1) {
+		f.add("warn", "journal-volatile", "kernel", journal.Boots)
+	}
 	if link.Wireless && link.SignalDBm < -70 && link.SignalDBm != 0 {
 		f.add("warn", "wifi-signal", "link", link.SignalDBm)
 	}

@@ -139,6 +139,18 @@ func StabilityByKernel(reboots []Reboot, boots []BootLinkStats) []KernelStabilit
 	return out
 }
 
+// cleanlyMeasured reports whether a kernel can be called good. It has to have
+// been *watched* to be called quiet: wtmp knows how long a kernel ran, but with
+// a volatile journal its logs die with the boot, and an unwatched kernel then
+// scores a perfect zero drops out of zero observed minutes. Reading that as
+// evidence recommends downgrading to whichever kernel was logged least - which
+// is usually the oldest one, and quite possibly the one that started the fault.
+// Half an hour is the shortest window in which a fault at one drop per hour has
+// a fair chance of showing itself.
+func cleanlyMeasured(entry *KernelStability) bool {
+	return entry.Measured && entry.CoveredHrs >= 0.5 && entry.DropsPerHr < 1
+}
+
 // KernelRegressionData is the structured verdict, kept alongside the rendered
 // sentence so a saved run can be re-read in either language.
 type KernelRegressionData struct {
@@ -164,7 +176,7 @@ func KernelRegressionOf(stats []KernelStability, running string) (KernelRegressi
 		if other.Kernel == running || other.Hours < 4 {
 			continue
 		}
-		if other.Measured && other.DropsPerHr >= 1 {
+		if !cleanlyMeasured(other) {
 			continue
 		}
 		return KernelRegressionData{GoodKernel: other.Kernel, GoodHours: other.Hours,
@@ -190,13 +202,12 @@ func KernelRegression(stats []KernelStability, running string) (string, string, 
 		if other.Kernel == running {
 			continue
 		}
-		// a long clean run on another kernel is the evidence we want; wtmp gives
-		// us its uptime even when the journal for it is long gone
+		// a long clean run on another kernel is the evidence we want
 		if other.Hours < 4 {
 			continue
 		}
-		if other.Measured && other.DropsPerHr >= 1 {
-			continue // that kernel flapped too, so this is not a regression
+		if !cleanlyMeasured(other) {
+			continue // it flapped too, or nobody was watching
 		}
 		detail := i18n.T("fnd.kernel-regression.detail",
 			other.Kernel, other.Hours, running, current.DropsPerHr)

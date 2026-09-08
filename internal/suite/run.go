@@ -69,6 +69,8 @@ func SnapshotEnv(cfg config.Config) Env {
 		DNSPaths:    probe.UpstreamDetail(),
 	}
 	env.EEE = probe.ReadEEE(env.Link.Iface)
+	env.ASPM = probe.ReadASPM(env.Link.Iface)
+	env.Journal = probe.ReadJournalStorage()
 	env.IPv6 = probe.CheckIPv6(context.Background(), 3*time.Second)
 	env.Firewall = probe.CheckFirewallICMP()
 	// comparing boots is the only way to tell "this always happened" from
