@@ -104,26 +104,25 @@ func StabilityByKernel(reboots []Reboot, boots []BootLinkStats) []KernelStabilit
 		}
 		return entry
 	}
-	// Both lists are newest-first and describe the same sequence of boots, so
-	// they pair up by position. Matching on timestamps looks safer but breaks
-	// exactly when it matters: a vacuumed journal reports a boot as starting
-	// hours after it really did, and that is precisely the old, quiet boot we
-	// need in the comparison.
-	for index, reboot := range reboots {
+	// Each journal boot is matched to the wtmp session it fell inside, rather
+	// than to whichever entry sits at the same index. Position only works while
+	// the two lists agree entry for entry; one boot that wtmp missed, or one the
+	// journal never kept, shifts everything older by one and silently files every
+	// drop under the wrong kernel - which is exactly the claim this table exists
+	// to make. A vacuumed journal still reports its boot as starting late, so the
+	// window is matched by where it *ends*, which vacuuming does not move.
+	used := make([]bool, len(boots))
+	for _, reboot := range reboots {
 		entry := get(reboot.Kernel)
 		entry.Boots++
 		entry.Hours += reboot.Uptime.Hours()
-		if index >= len(boots) {
+
+		index := bootWithin(reboot, boots, used)
+		if index < 0 {
 			continue
 		}
+		used[index] = true
 		boot := boots[index]
-		if boot.Minutes() < 1 {
-			continue
-		}
-		// sanity: the journal window must fall inside this boot's lifetime
-		if !boot.To.IsZero() && boot.To.Before(reboot.At) {
-			continue
-		}
 		entry.Measured = true
 		entry.Drops += boot.Drops
 		entry.CoveredHrs += boot.Minutes() / 60
@@ -149,6 +148,28 @@ func StabilityByKernel(reboots []Reboot, boots []BootLinkStats) []KernelStabilit
 // a fair chance of showing itself.
 func cleanlyMeasured(entry *KernelStability) bool {
 	return entry.Measured && entry.CoveredHrs >= 0.5 && entry.DropsPerHr < 1
+}
+
+// bootWithin finds the journal boot whose log window ends inside this wtmp
+// session, and returns -1 when none does. A session that was never logged
+// simply gets no measurement, which is the honest answer.
+func bootWithin(reboot Reboot, boots []BootLinkStats, used []bool) int {
+	end := reboot.At.Add(reboot.Uptime)
+	if reboot.Current || reboot.Uptime <= 0 {
+		end = time.Now()
+	}
+	// a little slack: wtmp rounds to the minute and the last log line lands
+	// before the shutdown record is written
+	end = end.Add(10 * time.Minute)
+	for index, boot := range boots {
+		if used[index] || boot.Minutes() < 1 || boot.To.IsZero() {
+			continue
+		}
+		if !boot.To.Before(reboot.At) && !boot.To.After(end) {
+			return index
+		}
+	}
+	return -1
 }
 
 // KernelRegressionData is the structured verdict, kept alongside the rendered

@@ -5,8 +5,6 @@ import (
 	"net"
 	"strings"
 	"time"
-
-	"github.com/WinTone01/nabiz/internal/util"
 )
 
 // Half-working IPv6 is worse than no IPv6: the resolver hands back an AAAA
@@ -117,7 +115,7 @@ type FirewallICMP struct {
 // CheckFirewallICMP scans the kernel log for firewall drops of ICMP.
 func CheckFirewallICMP() FirewallICMP {
 	var out FirewallICMP
-	text, ok := util.Run(8*time.Second, "journalctl", "-k", "-b", "--no-pager", "-n", "5000")
+	text, ok := KernelLog()
 	if !ok {
 		return out
 	}

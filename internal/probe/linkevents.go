@@ -102,8 +102,7 @@ func ReadLinkHistory(iface string) LinkHistory {
 		history.Reason = i18n.T("ui.unknown")
 		return history
 	}
-	out, ok := util.Run(10*time.Second, "journalctl", "-k", "-b", "--no-pager",
-		"--output=short-iso", "-n", "20000")
+	out, ok := KernelLog()
 	if !ok || strings.TrimSpace(out) == "" {
 		history.Reason = i18n.T("err.journal")
 		return history
@@ -276,43 +275,92 @@ func ReadBootHistory(iface string, maxBoots int) []BootLinkStats {
 	if iface == "" || util.Which("journalctl") == "" {
 		return nil
 	}
+	windows, haveWindows := bootWindows(maxBoots)
+
 	var out []BootLinkStats
 	for index := 0; index > -maxBoots; index-- {
-		text, ok := util.Run(12*time.Second, "journalctl", "-k",
-			"-b", strconv.Itoa(index), "--no-pager", "--output=short-iso", "-n", "200000")
-		if !ok || strings.TrimSpace(text) == "" {
+		stats, ok := readBoot(iface, index, windows, haveWindows)
+		if !ok {
 			break
 		}
-		stats := BootLinkStats{Index: index}
-		var sawBanner bool
-		for _, line := range strings.Split(text, "\n") {
-			if line == "" {
-				continue
-			}
-			stamp := parseKernelStamp(line)
-			if !stamp.IsZero() {
+		out = append(out, stats)
+	}
+	return out
+}
+
+// grepPattern keeps the whole scan on journald's side of the pipe. The boot
+// banner is in it because the kernel release is read from the same output, and
+// a boot whose banner has been rotated away is only partially observed - which
+// the caller has to know, since "no drops" in a partial window proves nothing.
+const grepPattern = "Link is Down|Downshift occurred|Linux version "
+
+// readBoot counts the link events of one boot.
+//
+// The events are picked out by journalctl rather than by reading every line
+// here: on a machine that logs firewall drops to the kernel ring buffer, the
+// lines this cares about are a rounding error in the total, and with a
+// persistent journal the total is unbounded.
+func readBoot(iface string, index int, windows []bootWindow, haveWindows bool) (BootLinkStats, bool) {
+	stats := BootLinkStats{Index: index}
+	args := []string{"-k", "-b", strconv.Itoa(index), "--no-pager", "--output=short-iso"}
+	if haveWindows {
+		args = append(args, "--grep", grepPattern)
+	} else {
+		// older systemd without --list-boots -o json: read the log and take the
+		// window from its own first and last timestamps, as before
+		args = append(args, "-n", "200000")
+	}
+	text, ok := util.Run(12*time.Second, "journalctl", args...)
+	if !ok {
+		return stats, false
+	}
+	if haveWindows {
+		window, found := windowFor(index, windows)
+		if !found {
+			return stats, false
+		}
+		stats.From, stats.To = window.from(), window.to()
+	}
+	// A --grep run that matches nothing is a real answer: that boot had no link
+	// events. Only a boot journald does not have at all ends the walk, and that
+	// is the !ok above.
+	var sawBanner bool
+	for _, line := range strings.Split(text, "\n") {
+		if line == "" {
+			continue
+		}
+		if !haveWindows {
+			if stamp := parseKernelStamp(line); !stamp.IsZero() {
 				if stats.From.IsZero() {
 					stats.From = stamp
 				}
 				stats.To = stamp
 			}
-			if strings.Contains(line, "Linux version ") {
-				sawBanner = true
-				if fields := strings.SplitN(line, "Linux version ", 2); len(fields) == 2 {
-					stats.Kernel = strings.Fields(fields[1])[0]
-				}
-			}
-			if strings.Contains(line, iface) && strings.Contains(line, "Link is Down") {
-				stats.Drops++
-			}
-			if strings.Contains(line, "Downshift occurred") {
-				stats.Downshifts++
+		}
+		if strings.Contains(line, "Linux version ") {
+			sawBanner = true
+			if fields := strings.SplitN(line, "Linux version ", 2); len(fields) == 2 {
+				stats.Kernel = strings.Fields(fields[1])[0]
 			}
 		}
-		stats.Truncated = !sawBanner
-		out = append(out, stats)
+		if strings.Contains(line, iface) && strings.Contains(line, "Link is Down") {
+			stats.Drops++
+		}
+		if strings.Contains(line, "Downshift occurred") {
+			stats.Downshifts++
+		}
 	}
-	return out
+	stats.Truncated = !sawBanner
+	return stats, true
+}
+
+func windowFor(index int, windows []bootWindow) (bootWindow, bool) {
+	for _, window := range windows {
+		if window.Index == index {
+			return window, true
+		}
+	}
+	return bootWindow{}, false
 }
 
 // Regression is the structured form of "this started recently". Storing the

@@ -93,7 +93,7 @@ func ReadASPM(iface string) ASPMStatus {
 
 	readLinkControl(&status)
 
-	out, ok := util.Run(10*time.Second, "journalctl", "-k", "-b", "--no-pager", "-n", "20000")
+	out, ok := KernelLog()
 	if !ok {
 		// sysfs still answered, so report what we have rather than nothing
 		status.Checked = status.Slot != "" || status.Policy != ""
