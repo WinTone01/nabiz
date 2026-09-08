@@ -4,6 +4,12 @@ package i18n
 func init() {
 	register(map[string][2]string{
 		// --- physical link ----------------------------------------------
+		"fnd.no-network.title":         {"there is no working network to measure: %s", "ölçülecek çalışan bir ağ yok: %s"},
+		"fnd.no-network.hint":          {"every check below ran against nothing, so a failed probe and a blocked one look the same; fix the connection first and measure again", "aşağıdaki her kontrol boşluğa karşı çalıştı, bu yüzden başarısız bir probe ile engellenmiş bir probe aynı görünür; önce bağlantıyı düzeltip tekrar ölçün"},
+		"fnd.no-network.nointerface":   {"no network interface and no default route", "ağ arayüzü de varsayılan rota da yok"},
+		"fnd.no-network.nocarrier":     {"the interface has no carrier - the cable is out, or the Wi-Fi is not associated", "arayüzde carrier yok - kablo çıkık ya da Wi-Fi bağlı değil"},
+		"fnd.no-network.noroute":       {"no default route, so nothing can leave this machine", "varsayılan rota yok, bu makineden hiçbir şey çıkamaz"},
+		"fnd.no-network.noreply":       {"packets went out to every anchor, including the modem, and nothing answered", "modem dahil bütün çıpalara paket gitti ve hiçbiri cevap vermedi"},
 		"fnd.link-speed.title":         {"%s negotiated at %d Mbit/s", "%s %d Mbit/s ile anlaşmış"},
 		"fnd.link-speed.hint":          {"if you expect gigabit, the cable or the switch port is the limit", "gigabit bekliyorsan kablo veya switch portu sınırlıyor demektir"},
 		"fnd.duplex.title":             {"%s duplex - collisions and loss are unavoidable", "%s duplex - çarpışma ve kayıp kaçınılmaz"},

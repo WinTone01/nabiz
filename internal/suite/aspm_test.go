@@ -103,7 +103,8 @@ func TestSettledLinkSilencesEveryDropDerivedClaim(t *testing.T) {
 		Downshifts: 14, DownshiftNote: "1Gbps → 100Mbps",
 	}
 	result := Result{Env: Env{
-		Link:        probe.LinkInfo{Iface: "enp3s0", SpeedMbit: 100, Duplex: "full", CarrierUps: 15},
+		Link: probe.LinkInfo{Iface: "enp3s0", Gateway: "192.168.0.1", Carrier: true,
+			SpeedMbit: 100, Duplex: "full", CarrierUps: 15},
 		LinkLog:     history,
 		GoodKernel:  "7.2.0",
 		KernRegData: &probe.KernelRegressionData{GoodKernel: "7.2.0", GoodHours: 45, Running: "7.2.3", CurrentRate: 16},

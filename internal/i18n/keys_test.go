@@ -31,7 +31,11 @@ func TestEveryKeyUsedInCodeExists(t *testing.T) {
 	root := repoRoot(t)
 	var missing []string
 	note := func(key, where string) {
-		if key == "" || Has(key) || filenameLike.MatchString(key) {
+		// a key ending in a dot is a prefix being concatenated with a variable
+		// suffix at the call site; the whole keys it forms are checked wherever
+		// the catalog defines them, not here
+		if key == "" || Has(key) || filenameLike.MatchString(key) ||
+			strings.HasSuffix(key, ".") {
 			return
 		}
 		missing = append(missing, key+"  ("+where+")")

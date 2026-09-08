@@ -59,7 +59,7 @@ func TestFindingPenaltyIsBounded(t *testing.T) {
 // A symptom whose cause did not fire in this run is its own problem: a link
 // that never dropped but negotiated at 100 Mbit has a real fault to report.
 func TestSymptomWithoutItsCauseStandsAlone(t *testing.T) {
-	items := linkCauses([]Finding{{Level: "warn", Key: "link-speed"}})
+	items := linkCauses([]Finding{{Level: "warn", Key: "link-speed"}}, Presence{})
 	if items[0].Because != "" {
 		t.Errorf("attached link-speed to an absent cause: %q", items[0].Because)
 	}

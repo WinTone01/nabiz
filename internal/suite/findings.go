@@ -90,12 +90,20 @@ var causes = map[string]string{
 // linkCauses attaches each symptom to the finding that explains it, but only
 // when that finding is actually present: on a link that never dropped, a 100
 // Mbit negotiation is its own problem and should be reported as one.
-func linkCauses(items []Finding) []Finding {
+func linkCauses(items []Finding, presence Presence) []Finding {
 	present := make(map[string]bool, len(items))
 	for _, finding := range items {
 		present[finding.Key] = true
 	}
 	for index, finding := range items {
+		// With no network, everything describing interference is describing a
+		// probe that never had a chance. Hanging those off the missing network
+		// keeps them visible - they are still what was observed - while saying
+		// what they actually mean and charging the score once.
+		if presence.Down && meaningless[finding.Key] {
+			items[index].Because = "no-network"
+			continue
+		}
 		if cause, ok := causes[finding.Key]; ok && present[cause] && cause != finding.Key {
 			items[index].Because = cause
 		}
@@ -105,6 +113,15 @@ func linkCauses(items []Finding) []Finding {
 
 func deriveFindings(result Result, cfg config.Config) []Finding {
 	var f findingList
+	// This comes first because it changes what everything below is worth: with
+	// no network, every probe fails, and a failed probe is indistinguishable
+	// from a blocked one.
+	presence := CheckPresence(result)
+	if presence.Down {
+		f.addText("bad", "no-network", "link",
+			i18n.T("fnd.no-network.title", presence.Detail()),
+			i18n.T("fnd.no-network.hint"))
+	}
 	limits := cfg.Thresholds
 	link := result.Env.Link
 	history := result.Env.LinkLog
@@ -450,7 +467,7 @@ func deriveFindings(result Result, cfg config.Config) []Finding {
 	if len(f.items) == 0 {
 		f.add("ok", "clean", "")
 	}
-	return orderFindings(linkCauses(f.items))
+	return orderFindings(linkCauses(f.items, presence))
 }
 
 var levelOrder = map[string]int{"bad": 0, "warn": 1, "info": 2, "ok": 3}
@@ -638,6 +655,12 @@ func findingPenalty(findings []Finding) float64 {
 }
 
 func scoreRun(result Result) (float64, string) {
+	// A run with no network is not a good run with missing data. The base score
+	// used to stay at its perfect starting value whenever no packet came back,
+	// which is precisely the case where the connection is broken.
+	if CheckPresence(result).Down {
+		return 0, stats.LetterFromScore(0)
+	}
 	internet := result.InternetLatency()
 	var score float64 = 100
 	if internet != nil && internet.Received > 0 {
