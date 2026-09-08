@@ -106,3 +106,45 @@ func ids(changes []Change) []string {
 	}
 	return out
 }
+
+// bpftune is only worth turning off when the run actually caught it costing
+// something, and the evidence is the retransmission during the transfer, not
+// the kernel-wide average.
+func TestBpftuneOfferedOnMeasuredRetransmission(t *testing.T) {
+	result := bloatedRun()
+	result.Env.Bpftune.Installed = true
+	result.Env.Bpftune.Running = true
+	result.Load.Upload.SNMPDelta.OutSegs = 10570
+	result.Load.Upload.SNMPDelta.RetransSegs = 1067
+	result.Load.Upload.SNMPDelta.RetransPct = 10.09
+	suite.Finalize(&result, config.Default())
+
+	found := false
+	for _, change := range Available(result) {
+		if change.ID == "bpftune-retrans" {
+			found = true
+			if strings.Join(change.Apply, " ") != "systemctl disable --now bpftune" {
+				t.Errorf("unexpected apply: %v", change.Apply)
+			}
+			if len(change.Services) == 0 {
+				t.Error("the service is not tracked, so a broken unit would survive the batch")
+			}
+		}
+	}
+	if !found {
+		t.Error("no bpftune change offered despite 10% retransmission under load")
+	}
+
+	// a quiet upload must not produce the same recommendation
+	calm := bloatedRun()
+	calm.Env.Bpftune.Installed = true
+	calm.Env.Bpftune.Running = true
+	calm.Load.Upload.SNMPDelta.OutSegs = 10570
+	calm.Load.Upload.SNMPDelta.RetransPct = 0.3
+	suite.Finalize(&calm, config.Default())
+	for _, change := range Available(calm) {
+		if change.ID == "bpftune-retrans" {
+			t.Error("recommended disabling bpftune on a clean upload")
+		}
+	}
+}

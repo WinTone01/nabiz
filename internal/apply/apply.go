@@ -378,6 +378,17 @@ func extraChanges(result suite.Result, iface string, sysctls map[string]string,
 					"sysctl -w net.ipv4.tcp_allowed_congestion_control=%q", current)},
 			})
 
+		case "bpftune-retrans":
+			// Unlike bpftune-vs-physical below, this one only stops the daemon:
+			// the sysctls it already set stay where they are, so undoing it is
+			// just starting the service again.
+			add(Change{
+				ID: advice.ID, Title: advice.Title, Risk: RiskMedium,
+				Apply:    []string{"systemctl disable --now bpftune"},
+				Restore:  []string{"systemctl enable --now bpftune"},
+				Services: []string{"bpftune"},
+			})
+
 		// bpftune-vs-physical is deliberately absent. Its command rolls back
 		// everything bpftune has done, which would undo the buffer ceiling and
 		// the tuner override applied alongside it; it is advice about the order

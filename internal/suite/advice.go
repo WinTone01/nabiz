@@ -65,6 +65,20 @@ func (a *adviceList) push(item Advice) { a.items = append(a.items, item) }
 
 func t(key string, args ...any) string { return i18n.T(key, args...) }
 
+// loadUploadRetrans is the retransmission rate measured during the upload test
+// alone. A saturating upload is where a bad congestion-control choice shows
+// itself; the kernel-wide counter spreads the same events across every idle
+// minute since boot and reads as a fraction of the truth.
+func loadUploadRetrans(result Result) float64 {
+	if result.Load == nil || result.Load.Upload == nil {
+		return 0
+	}
+	if result.Load.Upload.SNMPDelta.OutSegs < 2000 {
+		return 0 // too little traffic for the ratio to mean anything
+	}
+	return result.Load.Upload.SNMPDelta.RetransPct
+}
+
 // GenerateAdvice turns a finished run into a ranked, actionable to-do list.
 func GenerateAdvice(result Result, cfg config.Config) []Advice {
 	var out adviceList
@@ -582,6 +596,29 @@ func GenerateAdvice(result Result, cfg config.Config) []Advice {
 					t("adv.bpftune-cc.s2"),
 					"sudo sysctl -w net.ipv4.tcp_allowed_congestion_control=\"reno cubic bbr htcp\""},
 				Gain: t("adv.bpftune-cc.gain"),
+			})
+		}
+		// The cleanest evidence bpftune is hurting is retransmission measured
+		// during the transfer itself, not the kernel-wide figure, which averages
+		// the whole boot and buries a bad minute under hours of idle. On the line
+		// this check was written for the load test read 10% while the kernel-wide
+		// number sat at 0.8%, and stopping bpftune took the load figure to 0.3%
+		// with no loss of throughput.
+		if loadRetrans := loadUploadRetrans(result); loadRetrans >= 3 {
+			out.push(Advice{
+				ID: "bpftune-retrans", Priority: 2, Category: catBpftune,
+				Title: t("adv.bpftune-retrans.title"),
+				Why:   t("adv.bpftune-retrans.why", loadRetrans, health.RetransPct),
+				How: []string{
+					"nabiz ab --target bpftune",
+					t("adv.bpftune-retrans.s1"),
+					"sudo systemctl disable --now bpftune",
+					"nabiz load",
+					t("adv.bpftune-retrans.s2"),
+				},
+				Gain:   t("adv.bpftune-retrans.gain"),
+				Risk:   t("adv.bpftune-retrans.risk"),
+				Revert: []string{"sudo systemctl enable --now bpftune"},
 			})
 		}
 		if health.RetransPct > 2 {
