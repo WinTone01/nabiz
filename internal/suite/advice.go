@@ -338,31 +338,69 @@ func GenerateAdvice(result Result, cfg config.Config) []Advice {
 		if result.Load.Download != nil {
 			downMbps = result.Load.Download.Bps / 1e6
 		}
-		if bloat >= cfg.Thresholds.BloatWarn {
-			shapeUp, shapeDown := int(upMbps*0.92), int(downMbps*0.92)
+		sqm := result.Env.SQM
+		// A shaper only controls a queue while it is the bottleneck, so both
+		// rates sit under what the line actually delivered. Upload keeps a
+		// slim margin because we own that queue outright; download needs a
+		// wider one, since the queue being drained is inside the modem and the
+		// only lever is making the far-end senders back off.
+		shapeUp, shapeDown := int(upMbps*0.92), int(downMbps*0.85)
+		if bloat >= cfg.Thresholds.BloatWarn && sqm.Possible() &&
+			!(sqm.EgressShaped() && sqm.IngressShaped()) {
+			ifb := probe.IFBFor(iface)
+			steps := []string{t("adv.sqm.s1", shapeDown, shapeUp)}
+			steps = append(steps,
+				"sudo modprobe ifb numifbs=0",
+				fmt.Sprintf("sudo ip link add %s type ifb 2>/dev/null; sudo ip link set %s up", ifb, ifb),
+				fmt.Sprintf("sudo tc qdisc replace dev %s root cake bandwidth %dmbit diffserv4 triple-isolate nat ack-filter",
+					iface, maxInt(shapeUp, 1)),
+				fmt.Sprintf("sudo tc qdisc replace dev %s handle ffff: ingress", iface),
+				fmt.Sprintf("sudo tc filter replace dev %s parent ffff: protocol all matchall action mirred egress redirect dev %s",
+					iface, ifb),
+				fmt.Sprintf("sudo tc qdisc replace dev %s root cake bandwidth %dmbit besteffort triple-isolate nat wash ingress",
+					ifb, maxInt(shapeDown, 1)),
+				"nabiz load",
+				t("adv.sqm.s2"),
+				t("adv.sqm.s3"))
 			out.push(Advice{
 				ID: "sqm", Priority: 2, Category: catQueue,
-				Title: t("adv.sqm.title"),
-				Why:   t("adv.sqm.why", bloat, result.Load.Grade),
-				How: []string{
-					t("adv.sqm.s1"),
-					t("adv.sqm.s2", shapeDown, shapeUp),
-					t("adv.sqm.s3"),
-					fmt.Sprintf("sudo tc qdisc replace dev %s root cake bandwidth %dmbit besteffort",
-						iface, maxInt(shapeUp, 1)),
-					t("adv.sqm.s4"), "nabiz load",
-				},
+				Title:  t("adv.sqm.title"),
+				Why:    t("adv.sqm.why", bloat, result.Load.Grade, result.Load.DownDelta, result.Load.UpDelta),
+				How:    steps,
 				Gain:   t("adv.sqm.gain"),
 				Risk:   t("adv.sqm.risk"),
-				Revert: []string{"sudo tc qdisc replace dev " + iface + " root fq_codel"},
+				Revert: []string{
+					fmt.Sprintf("sudo tc qdisc del dev %s ingress; sudo ip link del %s", iface, ifb),
+					"sudo tc qdisc replace dev " + iface + " root fq_codel",
+				},
 			})
+		}
+		// Shaping that a relink erases is shaping that will be gone by the time
+		// it is needed; this link may renegotiate many times a day.
+		if (sqm.EgressShaped() || sqm.IngressShaped()) && !sqm.Persistent {
+			out.push(Advice{
+				ID: "sqm-persist", Priority: 2, Category: catQueue,
+				Title: t("adv.sqm-persist.title"),
+				Why:   t("adv.sqm-persist.why"),
+				How: []string{
+					t("adv.sqm-persist.s1"),
+					"nabiz apply --only sqm",
+					t("adv.sqm-persist.s2", iface),
+				},
+				Gain:   t("adv.sqm-persist.gain"),
+				Revert: []string{"sudo rm -f /etc/NetworkManager/dispatcher.d/60-nabiz-sqm"},
+			})
+		}
+		// Without an IFB device only the upload half can be shaped, so say that
+		// rather than presenting a partial fix as the whole one.
+		if bloat >= cfg.Thresholds.BloatWarn && !sqm.Possible() {
 			out.push(Advice{
 				ID: "cake-gaming", Priority: 4, Category: catQueue,
 				Title: t("adv.cake-gaming.title"),
 				Why:   t("adv.cake-gaming.why", result.Load.UpDelta),
 				How: []string{
 					fmt.Sprintf("sudo tc qdisc replace dev %s root cake bandwidth %dmbit diffserv4",
-						iface, maxInt(int(upMbps*0.92), 1)),
+						iface, maxInt(shapeUp, 1)),
 					t("adv.cake-gaming.s1"), "nabiz load",
 				},
 				Gain:   t("adv.cake-gaming.gain"),

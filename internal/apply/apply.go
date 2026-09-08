@@ -335,18 +335,13 @@ func extraChanges(result suite.Result, iface string, sysctls map[string]string,
 				Restore: []string{"sysctl -w net.ipv6.conf.all.disable_ipv6=0"},
 			})
 
-		case "sqm":
-			rate := shapeRate(result)
-			if rate <= 0 || iface == "" {
+		case "sqm", "sqm-persist":
+			change, ok := sqmChange(result, iface, sysctls)
+			if !ok {
 				continue
 			}
-			add(Change{
-				ID: advice.ID, Title: advice.Title, Risk: RiskMedium,
-				Apply: []string{fmt.Sprintf(
-					"tc qdisc replace dev %s root cake bandwidth %dmbit besteffort", iface, rate)},
-				Restore: []string{fmt.Sprintf(
-					"tc qdisc replace dev %s root %s", iface, restoreQdisc(sysctls))},
-			})
+			change.Title = advice.Title
+			add(change)
 
 		case "cake-gaming":
 			rate := shapeRate(result)
@@ -498,6 +493,89 @@ func deadEntries(result suite.Result) []string {
 		}
 	}
 	return out
+}
+
+
+// sqmDispatcher is where the shaping is installed so it outlives a relink.
+const sqmDispatcher = "/etc/NetworkManager/dispatcher.d/60-nabiz-sqm"
+
+// sqmChange installs cake in both directions and makes it stick.
+//
+// The commands go into a NetworkManager dispatcher rather than being run once,
+// because `tc` state dies with the link: every renegotiation, suspend or reboot
+// silently drops the shaping and the bufferbloat comes back with nothing on
+// screen to say why. The dispatcher is written with printf rather than a
+// heredoc - the batch script appends "|| echo failed" to each line, which would
+// swallow a heredoc's terminator.
+func sqmChange(result suite.Result, iface string, sysctls map[string]string) (Change, bool) {
+	up, down := shapeRates(result)
+	sqm := result.Env.SQM
+	if iface == "" || up <= 0 || down <= 0 || !sqm.Possible() {
+		return Change{}, false
+	}
+	ifb := probe.IFBFor(iface)
+
+	// no single quotes anywhere in these lines: each is passed to printf as a
+	// single-quoted argument, and escaping them back out is not worth the risk
+	body := []string{
+		"#!/bin/bash",
+		"# Installed by nabiz: cake shaping for " + iface + ", both directions.",
+		"export PATH=/usr/sbin:/usr/bin:/sbin:/bin",
+		`[ "$1" = "` + iface + `" ] || exit 0`,
+		`case "$2" in up|dhcp4-change) ;; *) exit 0 ;; esac`,
+		"modprobe ifb numifbs=0 2>/dev/null",
+		"ip link show " + ifb + " >/dev/null 2>&1 || ip link add " + ifb + " type ifb",
+		"ip link set " + ifb + " up",
+		fmt.Sprintf("tc qdisc replace dev %s root cake bandwidth %dmbit diffserv4 triple-isolate nat ack-filter",
+			iface, up),
+		fmt.Sprintf("tc qdisc replace dev %s handle ffff: ingress", iface),
+		fmt.Sprintf("tc filter replace dev %s parent ffff: protocol all matchall action mirred egress redirect dev %s",
+			iface, ifb),
+		fmt.Sprintf("tc qdisc replace dev %s root cake bandwidth %dmbit besteffort triple-isolate nat wash ingress",
+			ifb, down),
+		"exit 0",
+	}
+	quoted := make([]string, 0, len(body))
+	for _, line := range body {
+		if strings.Contains(line, "'") {
+			return Change{}, false // never emit a script we cannot quote safely
+		}
+		quoted = append(quoted, "'"+line+"'")
+	}
+
+	return Change{
+		ID: "sqm", Risk: RiskMedium,
+		Files: []string{sqmDispatcher},
+		Apply: []string{
+			"mkdir -p /etc/NetworkManager/dispatcher.d",
+			"printf '%s\\n' " + strings.Join(quoted, " ") + " > " + sqmDispatcher,
+			"chmod 755 " + sqmDispatcher,
+			sqmDispatcher + " " + iface + " up",
+		},
+		Restore: []string{
+			"rm -f " + sqmDispatcher,
+			fmt.Sprintf("tc qdisc del dev %s ingress", iface),
+			"ip link del " + ifb,
+			fmt.Sprintf("tc qdisc replace dev %s root %s", iface, restoreQdisc(sysctls)),
+		},
+	}, true
+}
+
+// shapeRates are the two rates to shape at, both under what the line actually
+// delivered. Upload keeps a slim margin because that queue is ours; download
+// needs a wider one, since its queue sits in the modem and the only lever is
+// making the far-end senders back off.
+func shapeRates(result suite.Result) (up, down int) {
+	if result.Load == nil {
+		return 0, 0
+	}
+	if result.Load.Upload != nil {
+		up = int(result.Load.Upload.Bps / 1e6 * 0.92)
+	}
+	if result.Load.Download != nil {
+		down = int(result.Load.Download.Bps / 1e6 * 0.85)
+	}
+	return up, down
 }
 
 // shapeRate is the upload rate to shape at: a little under what was measured,

@@ -28,6 +28,7 @@ type Env struct {
 	EEE         probe.EEEStatus             `json:"eee"`
 	ASPM        probe.ASPMStatus            `json:"aspm"`
 	Journal     probe.JournalStorage        `json:"journal"`
+	SQM         probe.SQMState              `json:"sqm"`
 	IPv6        probe.IPv6Status            `json:"ipv6"`
 	Firewall    probe.FirewallICMP          `json:"firewall_icmp"`
 	NFQueue     probe.NFQueueInfo           `json:"nfqueue"`
